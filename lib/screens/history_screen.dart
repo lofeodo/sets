@@ -1,1 +1,0 @@
-// later: pick exercise -> view progress and 3D plot
