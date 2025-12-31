@@ -136,10 +136,6 @@ class _CreateWorkoutScreenState extends ConsumerState<CreateWorkoutScreen>
             }),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addExerciseDialog,
-        child: const Icon(Icons.add),
-      ),
     );
   }
 }
