@@ -33,10 +33,17 @@ class WorkoutsController extends StateNotifier<AsyncValue<List<Workout>>>
     }
   }
 
-  Future<String?> addWorkout(String rawName) async
+  Future<String?> addWorkout({required String rawName, required List<String> rawExercises,}) async
   {
     final name = rawName.trim();
     if (name.isEmpty) return 'Name cannot be empty.';
+
+    final exercises = rawExercises
+      .map((e) => e.trim())
+      .where((e) => e.isNotEmpty)
+      .toList();
+
+    if (exercises.isEmpty) return 'Workout must contain at least 1 exercise.';
 
     final current = state.value ?? const [];
     final exists = current.any(
@@ -45,7 +52,7 @@ class WorkoutsController extends StateNotifier<AsyncValue<List<Workout>>>
 
     if (exists) return 'Workout name must be unique.';
 
-    final updated = [...current, Workout(name: name)];
+    final updated = [...current, Workout(name: name, exercises: exercises)];
     state = AsyncValue.data(updated);
 
     await _db.saveWorkouts(updated);
