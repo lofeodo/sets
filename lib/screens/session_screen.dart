@@ -1,0 +1,1 @@
+// the "today" logger (reps + weight per set)
