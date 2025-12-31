@@ -34,6 +34,7 @@ class WorkoutsScreen extends ConsumerWidget
               final workout = workouts[i];
               return ListTile(
                 title: Text(workout.name),
+                subtitle: Text('${workout.exercises.length} exercises'),
                 trailing: IconButton(
                   icon: const Icon(Icons.delete_outline),
                   onPressed: ()
