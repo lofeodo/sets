@@ -1,12 +1,26 @@
 class Workout 
 {
   final String name;
-  const Workout({required this.name});
+  final List<String> exercises;
 
-  Map<String, dynamic> toJson() => {'name': name};
+  const Workout({
+    required this.name,
+    required this.exercises,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'exercises': exercises,
+    };
 
   factory Workout.fromJson(Map<String, dynamic> json)
   {
-    return Workout(name: json['name'] as String);
+    final exercisesRaw = json['exercises'];
+    return Workout(
+      name: json['name'] as String,
+      exercises: (exercisesRaw is List)
+        ? exercisesRaw.whereType<String>().toList()
+        : <String>[],
+    );
   }
 }
