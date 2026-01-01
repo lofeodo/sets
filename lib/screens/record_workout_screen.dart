@@ -213,14 +213,28 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
   }
 
   Future<void> _initForWorkout(String workoutName, List<String> exercises) async {
-    // load defaults from LocalDb (Option 1)
     final db = ref.read(localDbProvider);
+    final today = _todayIso();
+
+    // Load today's existing session (if any)
+    final existing = await db.getSessionForDay(
+      workoutName: workoutName,
+      dateIso: today,
+    );
 
     for (final ex in exercises) {
       _defaults[ex] = await db.getDefaultWeight(workoutName, ex);
-      _drafts.putIfAbsent(ex, () => [
-            SetDraft.withDefaultWeight(_defaults[ex]),
-          ]);
+
+      // If we already logged today, use those sets
+      final savedSets = existing?.byExercise[ex] ?? const <SetLog>[];
+      if (savedSets.isNotEmpty) {
+        _drafts[ex] = savedSets.map(SetDraft.fromSetLog).toList();
+      } else {
+        // Otherwise start with 1 empty set using default weight
+        _drafts.putIfAbsent(ex, () => [
+              SetDraft.withDefaultWeight(_defaults[ex]),
+            ]);
+      }
     }
 
     if (mounted) setState(() {});
@@ -257,7 +271,7 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
     final db = ref.read(localDbProvider);
 
     // Persist session
-    await db.appendSession(session);
+    await db.upsertSession(session);
 
     // Update defaults: last non-bodyweight weight used per exercise
     for (final entry in byExercise.entries) {
@@ -303,6 +317,17 @@ class SetDraft {
     required this.partialRepsController,
   });
 
+  factory SetDraft.fromSetLog(SetLog log) {
+    return SetDraft(
+      isBodyweight: log.isBodyweight,
+      weightController: TextEditingController(
+        text: (log.isBodyweight || log.weight == null) ? '' : log.weight.toString(),
+      ),
+      fullRepsController: TextEditingController(text: log.fullReps.toString()),
+      partialRepsController: TextEditingController(text: log.partialReps.toString()),
+    );
+  }
+  
   factory SetDraft.withDefaultWeight(double? defaultWeight) {
     return SetDraft(
       isBodyweight: false,

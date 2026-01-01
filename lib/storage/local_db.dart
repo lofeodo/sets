@@ -92,4 +92,36 @@ class LocalDb
     map[_defaultKey(workoutName, exerciseName)] = weight;
     await saveExerciseDefaults(map);
   }
+
+  Future<SessionLog?> getSessionForDay({
+    required String workoutName,
+    required String dateIso,
+  }) async {
+    final sessions = await loadSessions();
+    for (final s in sessions.reversed) {
+      if (s.workoutName == workoutName && s.dateIso == dateIso) {
+        return s;
+      }
+    }
+    return null;
+  }
+
+  Future<void> upsertSession(SessionLog session) async {
+    final sessions = await loadSessions();
+
+    final idx = sessions.indexWhere(
+      (s) => s.workoutName == session.workoutName && s.dateIso == session.dateIso,
+    );
+
+    final updated = [...sessions];
+    if (idx == -1) {
+      updated.add(session);
+    } else {
+      updated[idx] = session;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final raw = jsonEncode(updated.map((s) => s.toJson()).toList());
+    await prefs.setString(_keySessions, raw);
+  }
 }
