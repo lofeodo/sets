@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/workouts_provider.dart';
 import 'create_workout_screen.dart';
+import 'workout_details_screen.dart';
 
 class WorkoutsScreen extends ConsumerWidget
 {
@@ -42,6 +43,14 @@ class WorkoutsScreen extends ConsumerWidget
                     ref.read(workoutsProvider.notifier).deleteWorkout(workout.name);
                   },
                 ),
+                onTap: () 
+                {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => WorkoutDetailsScreen(workoutName: workout.name),
+                    ),
+                  );
+                },
               );
             },
           );
