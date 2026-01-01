@@ -327,23 +327,28 @@ class SetDraft {
       partialRepsController: TextEditingController(text: log.partialReps.toString()),
     );
   }
-  
+
   factory SetDraft.withDefaultWeight(double? defaultWeight) {
     return SetDraft(
       isBodyweight: false,
       weightController: TextEditingController(
         text: defaultWeight == null ? '' : defaultWeight.toString(),
       ),
-      fullRepsController: TextEditingController(text: '0'),
-      partialRepsController: TextEditingController(text: '0'),
+      fullRepsController: TextEditingController(text: ''),
+      partialRepsController: TextEditingController(text: ''),
     );
   }
 
   SetLog toSetLog() {
-    final full = int.tryParse(fullRepsController.text.trim()) ?? 0;
-    final partial = int.tryParse(partialRepsController.text.trim()) ?? 0;
-    final weight =
-        double.tryParse(weightController.text.trim());
+    int parseIntOrZero(String s) {
+      final t = s.trim();
+      if (t.isEmpty) return 0;
+      return int.tryParse(t) ?? 0;
+    }
+
+    final full = parseIntOrZero(fullRepsController.text);
+    final partial = parseIntOrZero(partialRepsController.text);
+    final weight = double.tryParse(weightController.text.trim());
 
     return SetLog(
       isBodyweight: isBodyweight,
