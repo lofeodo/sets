@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/workouts_provider.dart';
 import 'workout_form_screen.dart';
+import 'record_workout_screen.dart';
 
 class WorkoutDetailsScreen extends ConsumerWidget {
   const WorkoutDetailsScreen({
@@ -58,6 +59,16 @@ class WorkoutDetailsScreen extends ConsumerWidget {
                     title: Text(exercises[i]),
                   ),
                 ),
+          floatingActionButton: FloatingActionButton(
+            child: const Icon(Icons.fiber_manual_record),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => RecordWorkoutScreen(workoutName: workout.name),
+                ),
+              );
+            },
+          ),
         );
       },
     );
