@@ -75,7 +75,7 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
       if (savedSets.isNotEmpty) {
         _drafts[ex] = savedSets.map(SetDraft.fromSetLog).toList();
       } else {
-        _drafts[ex] = [SetDraft.withDefaultWeight(_defaults[ex])];
+        _drafts[ex] = <SetDraft>[];
       }
     }
 
