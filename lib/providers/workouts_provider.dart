@@ -76,4 +76,48 @@ class WorkoutsController extends StateNotifier<AsyncValue<List<Workout>>>
     state = AsyncValue.data(updated);
     await _db.saveWorkouts(updated);
   }
+
+  Future<String?> updateWorkout({
+    required String originalName,
+    required String rawName,
+    required List<String> rawExercises,
+  }) async
+  {
+    final name = rawName.trim();
+    if (name.isEmpty) return 'Name cannot be empty.';
+
+    final exercises = rawExercises
+      .map((e) => e.trim())
+      .where((e) => e.isNotEmpty)
+      .toList();
+
+    if (exercises.isEmpty) return 'Workout must contain at least 1 exercise.';
+
+    final seenExercises = <String>{};
+    for (final exercise in exercises)
+    {
+      final key = exercise.toLowerCase();
+      if (!seenExercises.add(key))
+      {
+        return 'Exercise names within a workout must be unique.';
+      }
+    }
+
+    final current = state.value ?? const [];
+
+    final exists = current.any((w) => 
+      w.name.toLowerCase() == name.toLowerCase() &&
+      w.name.toLowerCase() != originalName.toLowerCase());
+    if (exists) return 'Workout name must be unique.';
+
+    final idx = current.indexWhere((w) => w.name == originalName);
+    if (idx == -1) return 'Workout not found.';
+
+    final updatedWorkout = Workout(name: name, exercises: exercises);
+    final updatedList = [...current]..[idx] = updatedWorkout;
+
+    state = AsyncValue.data(updatedList);
+    await _db.saveWorkouts(updatedList);
+    return null;
+  }
 }
