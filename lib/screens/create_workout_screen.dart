@@ -54,6 +54,15 @@ class _CreateWorkoutScreenState extends ConsumerState<CreateWorkoutScreen>
     final name = result.trim();
     if (name.isEmpty) return;
 
+    final exists = _exercises.any((e) => e.toLowerCase() == name.toLowerCase());
+    if (exists)
+    {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Exercise already added.')),
+      );
+      return;
+    }
+
     setState(() => _exercises.add(name));
   }
 

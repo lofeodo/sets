@@ -45,6 +45,16 @@ class WorkoutsController extends StateNotifier<AsyncValue<List<Workout>>>
 
     if (exercises.isEmpty) return 'Workout must contain at least 1 exercise.';
 
+    final seen = <String>{};
+    for (final exercise in exercises)
+    {
+      final key = exercise.toLowerCase();
+      if (!seen.add(key))
+      {
+        return 'Exercise names within a workout must be unique.';
+      }
+    }
+
     final current = state.value ?? const [];
     final exists = current.any(
       (w) => w.name.toLowerCase() == name.toLowerCase(),
