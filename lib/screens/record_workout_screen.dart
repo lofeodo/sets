@@ -20,18 +20,75 @@ class RecordWorkoutScreen extends ConsumerStatefulWidget {
 class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
   int _exerciseIndex = 0;
 
-  // exerciseName -> list of SetDrafts
   final Map<String, List<SetDraft>> _drafts = {};
-
-  // exerciseName -> default weight (Option 1)
   final Map<String, double?> _defaults = {};
+  late DateTime _activeDate;
+  late final DateTime _today;
 
   bool _initialized = false;
 
-  String _todayIso() {
+  @override
+  void initState() {
+    super.initState();
     final now = DateTime.now();
+    _today = DateTime(now.year, now.month, now.day);
+    _activeDate = _today;
+  }
+
+  bool get _canGoPrev => true; // always can go back
+  bool get _canGoNext => !_activeDate.isAtSameMomentAs(_today);
+
+  Future<void> _goPrev(String workoutName, List<String> exercises) async {
+    _activeDate = _activeDate.subtract(const Duration(days: 1));
+    await _loadForDate(workoutName, exercises);
+  }
+
+  Future<void> _goNext(String workoutName, List<String> exercises) async {
+    if (!_canGoNext) return;
+    _activeDate = _activeDate.add(const Duration(days: 1));
+    await _loadForDate(workoutName, exercises);
+  }
+
+  Future<void> _loadForDate(String workoutName, List<String> exercises) async {
+    final db = ref.read(localDbProvider);
+    final dateIso = _dateIso(_activeDate);
+
+    // Clear old drafts + dispose controllers
+    for (final sets in _drafts.values) {
+      for (final d in sets) {
+        d.dispose();
+      }
+    }
+    _drafts.clear();
+
+    // Load session for this date
+    final existing = await db.getSessionForDay(
+      workoutName: workoutName,
+      dateIso: dateIso,
+    );
+
+    // Ensure defaults are loaded (used for new blank days)
+    for (final ex in exercises) {
+      _defaults[ex] = await db.getDefaultWeight(workoutName, ex);
+
+      final savedSets = existing?.byExercise[ex] ?? const <SetLog>[];
+      if (savedSets.isNotEmpty) {
+        _drafts[ex] = savedSets.map(SetDraft.fromSetLog).toList();
+      } else {
+        _drafts[ex] = [SetDraft.withDefaultWeight(_defaults[ex])];
+      }
+    }
+
+    // Clamp exercise index if list changed (unlikely, but safe)
+    if (_exerciseIndex >= exercises.length) _exerciseIndex = exercises.length - 1;
+    if (_exerciseIndex < 0) _exerciseIndex = 0;
+
+    if (mounted) setState(() {});
+  }
+
+  String _dateIso(DateTime d) {
     String two(int x) => x.toString().padLeft(2, '0');
-    return '${now.year}-${two(now.month)}-${two(now.day)}';
+    return '${d.year}-${two(d.month)}-${two(d.day)}';
   }
 
   @override
@@ -50,10 +107,9 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
       return const Scaffold(body: Center(child: Text('Workout has no exercises.')));
     }
 
-    // One-time init: load defaults + ensure at least 1 draft set per exercise
     if (!_initialized) {
       _initialized = true;
-      _initForWorkout(workout.name, exercises);
+      _loadForDate(workout.name, exercises);
     }
 
     final currentExercise = exercises[_exerciseIndex];
@@ -61,7 +117,7 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Record • ${_todayIso()}'),
+        title: Text('Record • ${_dateIso(_activeDate)}'),
         leading: IconButton(
           icon: const Icon(Icons.close),
           tooltip: 'Close',
@@ -77,6 +133,28 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: () => _goPrev(workout.name, exercises),
+                tooltip: 'Previous day',
+              ),
+              Expanded(
+                child: Text(
+                  _dateIso(_activeDate),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: _canGoNext ? () => _goNext(workout.name, exercises) : null,
+                tooltip: 'Next day',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           // Exercise pager header
           Row(
             children: [
@@ -217,7 +295,7 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
 
   Future<void> _initForWorkout(String workoutName, List<String> exercises) async {
     final db = ref.read(localDbProvider);
-    final today = _todayIso();
+    final today = _dateIso(_activeDate);
 
     // Load today's existing session (if any)
     final existing = await db.getSessionForDay(
@@ -267,7 +345,7 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
 
     final session = SessionLog(
       workoutName: workoutName,
-      dateIso: _todayIso(),
+      dateIso: _dateIso(_activeDate),
       byExercise: byExercise,
     );
 
