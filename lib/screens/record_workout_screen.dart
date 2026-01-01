@@ -113,7 +113,7 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
     }
 
     final currentExercise = exercises[_exerciseIndex];
-    final currentSets = _drafts.putIfAbsent(currentExercise, () => []);
+    final currentSets = _drafts.putIfAbsent(currentExercise, () => <SetDraft>[]);
 
     return Scaffold(
       appBar: AppBar(
@@ -311,10 +311,7 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
       if (savedSets.isNotEmpty) {
         _drafts[ex] = savedSets.map(SetDraft.fromSetLog).toList();
       } else {
-        // Otherwise start with 1 empty set using default weight
-        _drafts.putIfAbsent(ex, () => [
-              SetDraft.withDefaultWeight(_defaults[ex]),
-            ]);
+        _drafts.putIfAbsent(ex, () => <SetDraft>[]);
       }
     }
 
