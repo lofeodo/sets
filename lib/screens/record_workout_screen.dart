@@ -91,6 +91,27 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
     return '${d.year}-${two(d.month)}-${two(d.day)}';
   }
 
+  Future<void> _pickDate(String workoutName, List<String> exercises) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _activeDate,
+      firstDate: DateTime(2000, 1, 1),
+      lastDate: _today, // keep consistent with arrow behavior
+    );
+
+    if (picked == null) return;
+
+    final normalized = DateTime(picked.year, picked.month, picked.day);
+
+    if (normalized == _activeDate) return;
+
+    setState(() {
+      _activeDate = normalized;
+    });
+
+    await _loadForDate(workoutName, exercises);
+  }
+
   @override
   Widget build(BuildContext context) {
     final workouts = ref.watch(workoutsProvider).value ?? const [];
@@ -141,10 +162,18 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
                 tooltip: 'Previous day',
               ),
               Expanded(
-                child: Text(
-                  _dateIso(_activeDate),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                child: Center(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () => _pickDate(workout.name, exercises),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      child: Text(
+                        _dateIso(_activeDate),
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
                 ),
               ),
               IconButton(
