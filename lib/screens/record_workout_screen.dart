@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/workouts_provider.dart';
 import '../model/session_log.dart';
@@ -194,12 +195,14 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
                       TextField(
                         controller: set.fullRepsController,
                         keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                         decoration: const InputDecoration(labelText: 'Full reps'),
                       ),
                       const SizedBox(height: 8),
                       TextField(
                         controller: set.partialRepsController,
                         keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                         decoration: const InputDecoration(labelText: 'Partial reps'),
                       ),
                     ],
