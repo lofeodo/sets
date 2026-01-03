@@ -12,6 +12,7 @@ class LocalDb
   static const String _keyExerciseDefaults = 'exercise_defaults_v2';
 
   String exerciseKey(String name) => name.trim().toLowerCase();
+  String workoutKey(String name) => name.trim().toLowerCase();
 
   Future<List<Workout>> loadWorkouts() async
   {
@@ -51,14 +52,21 @@ class LocalDb
   }
 
   Future<ExerciseDayLog?> getExerciseLogForDay({
+    required String workoutName,
     required String exerciseName,
     required String dateIso,
   }) async 
   {
-    final key = exerciseKey(exerciseName);
+    final eKey = exerciseKey(exerciseName);
+    final wKey = workoutKey(workoutName);
+
     final logs = await loadExerciseLogs();
-    for (final l in logs.reversed) {
-      if (l.exerciseKey == key && l.dateIso == dateIso) return l;
+    for (final l in logs.reversed) 
+    {
+      if (l.exerciseKey == eKey && l.workoutKey == wKey && l.dateIso == dateIso) 
+      {
+        return l;
+      }
     }
     return null;
   }
@@ -68,13 +76,19 @@ class LocalDb
     final logs = await loadExerciseLogs();
 
     final idx = logs.indexWhere(
-      (l) => l.exerciseKey == log.exerciseKey && l.dateIso == log.dateIso,
+      (l) =>
+          l.exerciseKey == log.exerciseKey &&
+          l.workoutKey == log.workoutKey &&
+          l.dateIso == log.dateIso,
     );
 
     final updated = [...logs];
-    if (idx == -1) {
+    if (idx == -1) 
+    {
       updated.add(log);
-    } else {
+    } 
+    else 
+    {
       updated[idx] = log;
     }
 
