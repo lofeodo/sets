@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/workouts_provider.dart';
 import '../model/session_log.dart';
 import '../model/set_log.dart';
+import '../model/exercise_day_log.dart';
 
 class RecordWorkoutScreen extends ConsumerStatefulWidget {
   const RecordWorkoutScreen({
@@ -56,23 +57,18 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
     await _loadForDate(workoutName, exercises);
   }
 
-  Future<void> _loadForDate(String workoutName, List<String> exercises) async 
-  {
-    // 1) If we have cached drafts for this date, restore and stop.
+  Future<void> _loadForDate(String workoutName, List<String> exercises) async {
+    // 1) If we already have this date in cache, restore it and exit.
     if (_draftsByDate.containsKey(_activeIso)) {
       _restoreDraftsForActiveDate(exercises: exercises);
       if (mounted) setState(() {});
       return;
     }
 
-    // 2) Otherwise load from DB (saved session) or empty.
     final db = ref.read(localDbProvider);
-    final existing = await db.getSessionForDay(
-      workoutName: workoutName,
-      dateIso: _activeIso,
-    );
+    final dateIso = _activeIso;
 
-    // Dispose current controllers before rebuilding drafts
+    // 2) Dispose current controllers + clear active drafts
     for (final sets in _drafts.values) {
       for (final d in sets) {
         d.dispose();
@@ -80,21 +76,31 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
     }
     _drafts.clear();
 
-    // Load defaults + session sets
+    // 3) Load per-exercise defaults + logs for this date
     for (final ex in exercises) {
-      _defaults[ex] = await db.getDefaultWeight(workoutName, ex);
+      _defaults[ex] = await db.getDefaultWeightForExercise(ex);
 
-      final savedSets = existing?.byExercise[ex] ?? const <SetLog>[];
+      final existing = await db.getExerciseLogForDay(
+        exerciseName: ex,
+        dateIso: dateIso,
+      );
+
+      final savedSets = existing?.sets ?? const <SetLog>[];
       if (savedSets.isNotEmpty) {
         _drafts[ex] = savedSets.map(SetDraft.fromSetLog).toList();
       } else {
-        _drafts[ex] = <SetDraft>[]; // ✅ blank day starts with no sets
+        _drafts[ex] = <SetDraft>[]; // ✅ blank date => no sets by default
       }
     }
 
-    _exerciseIndex = _exerciseIndex.clamp(0, exercises.length - 1);
+    // Clamp exercise index
+    if (exercises.isNotEmpty) {
+      _exerciseIndex = _exerciseIndex.clamp(0, exercises.length - 1);
+    } else {
+      _exerciseIndex = 0;
+    }
 
-    // Cache what we loaded so scrolling away and back keeps it “temporarily saved”
+    // 4) Cache what we loaded so scrolling away/back preserves state
     _stashActiveDrafts();
 
     if (mounted) setState(() {});
@@ -409,7 +415,7 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
     );
 
     for (final ex in exercises) {
-      _defaults[ex] = await db.getDefaultWeight(workoutName, ex);
+      _defaults[ex] = await db.getDefaultWeightForExercise(ex);
 
       // If we already logged today, use those sets
       final savedSets = existing?.byExercise[ex] ?? const <SetLog>[];
@@ -424,39 +430,36 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
   }
 
   Future<void> _saveAll(String workoutName) async {
-    // Make sure the active date edits are included
+    // Ensure current active date edits are included
     _stashActiveDrafts();
 
     final db = ref.read(localDbProvider);
 
-    // Save every date we’ve touched in this “record session”
-    for (final entry in _draftsByDate.entries) {
-      final dateIso = entry.key; // YYYY-MM-DD
-      final perExerciseDrafts = entry.value; // Map<String, List<SetDraft>>
+    // Save every cached date
+    for (final dateEntry in _draftsByDate.entries) {
+      final dateIso = dateEntry.key; // YYYY-MM-DD
+      final perExerciseDrafts = dateEntry.value; // exerciseName -> List<SetDraft>
 
-      // Build byExercise from drafts (EMPTY IS ALLOWED)
-      final byExercise = <String, List<SetLog>>{};
       for (final exEntry in perExerciseDrafts.entries) {
-        final exName = exEntry.key;
-        final setLogs = exEntry.value.map((d) => d.toSetLog()).toList();
-        if (setLogs.isNotEmpty) {
-          byExercise[exName] = setLogs;
-        }
-      }
+        final exerciseName = exEntry.key;
+        final drafts = exEntry.value;
 
-      final session = SessionLog(
-        workoutName: workoutName,
-        dateIso: dateIso,
-        byExercise: byExercise, // can be empty
-      );
+        // Convert UI drafts to SetLog (empty list allowed)
+        final sets = drafts.map((d) => d.toSetLog()).toList();
 
-      await db.upsertSession(session);
+        final log = ExerciseDayLog(
+          exerciseKey: db.exerciseKey(exerciseName),
+          exerciseName: exerciseName,
+          dateIso: dateIso,
+          workoutName: workoutName, // metadata
+          sets: sets,
+        );
 
-      // Update defaults for this date (optional but recommended):
-      // Use MAX weight in that day's workout (your current preference).
-      for (final ex in byExercise.keys) {
+        await db.upsertExerciseLog(log);
+
+        // Update default weight for this exercise = max weight used in this log
         double? maxWeight;
-        for (final s in byExercise[ex]!) {
+        for (final s in sets) {
           if (!s.isBodyweight && s.weight != null) {
             if (maxWeight == null || s.weight! > maxWeight) {
               maxWeight = s.weight;
@@ -464,7 +467,8 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
           }
         }
         if (maxWeight != null) {
-          await db.setDefaultWeight(workoutName, ex, maxWeight);
+          await db.setDefaultWeightForExercise(exerciseName, maxWeight);
+          _defaults[exerciseName] = maxWeight; // keep in-memory defaults in sync
         }
       }
     }
