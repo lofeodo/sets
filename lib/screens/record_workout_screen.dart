@@ -22,6 +22,8 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
 
   final Map<String, List<SetDraft>> _drafts = {};
   final Map<String, double?> _defaults = {};
+  final Map<String, Map<String, List<SetDraft>>> _draftsByDate = {};
+  final Map<String, int> _exerciseIndexByDate = {};
   late DateTime _activeDate;
   late final DateTime _today;
 
@@ -37,23 +39,40 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
 
   bool get _canGoPrev => true; // always can go back
   bool get _canGoNext => !_activeDate.isAtSameMomentAs(_today);
+  String get _activeIso => _dateIso(_activeDate);
 
-  Future<void> _goPrev(String workoutName, List<String> exercises) async {
+  Future<void> _goPrev(String workoutName, List<String> exercises) async 
+  {
+    _stashActiveDrafts();
     _activeDate = _activeDate.subtract(const Duration(days: 1));
     await _loadForDate(workoutName, exercises);
   }
 
-  Future<void> _goNext(String workoutName, List<String> exercises) async {
+  Future<void> _goNext(String workoutName, List<String> exercises) async 
+  {
     if (!_canGoNext) return;
+    _stashActiveDrafts();
     _activeDate = _activeDate.add(const Duration(days: 1));
     await _loadForDate(workoutName, exercises);
   }
 
-  Future<void> _loadForDate(String workoutName, List<String> exercises) async {
-    final db = ref.read(localDbProvider);
-    final dateIso = _dateIso(_activeDate);
+  Future<void> _loadForDate(String workoutName, List<String> exercises) async 
+  {
+    // 1) If we have cached drafts for this date, restore and stop.
+    if (_draftsByDate.containsKey(_activeIso)) {
+      _restoreDraftsForActiveDate(exercises: exercises);
+      if (mounted) setState(() {});
+      return;
+    }
 
-    // Clear old drafts + dispose controllers
+    // 2) Otherwise load from DB (saved session) or empty.
+    final db = ref.read(localDbProvider);
+    final existing = await db.getSessionForDay(
+      workoutName: workoutName,
+      dateIso: _activeIso,
+    );
+
+    // Dispose current controllers before rebuilding drafts
     for (final sets in _drafts.values) {
       for (final d in sets) {
         d.dispose();
@@ -61,13 +80,7 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
     }
     _drafts.clear();
 
-    // Load session for this date
-    final existing = await db.getSessionForDay(
-      workoutName: workoutName,
-      dateIso: dateIso,
-    );
-
-    // Ensure defaults are loaded (used for new blank days)
+    // Load defaults + session sets
     for (final ex in exercises) {
       _defaults[ex] = await db.getDefaultWeight(workoutName, ex);
 
@@ -75,23 +88,26 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
       if (savedSets.isNotEmpty) {
         _drafts[ex] = savedSets.map(SetDraft.fromSetLog).toList();
       } else {
-        _drafts[ex] = <SetDraft>[];
+        _drafts[ex] = <SetDraft>[]; // ✅ blank day starts with no sets
       }
     }
 
-    // Clamp exercise index if list changed (unlikely, but safe)
-    if (_exerciseIndex >= exercises.length) _exerciseIndex = exercises.length - 1;
-    if (_exerciseIndex < 0) _exerciseIndex = 0;
+    _exerciseIndex = _exerciseIndex.clamp(0, exercises.length - 1);
+
+    // Cache what we loaded so scrolling away and back keeps it “temporarily saved”
+    _stashActiveDrafts();
 
     if (mounted) setState(() {});
   }
 
-  String _dateIso(DateTime d) {
+  String _dateIso(DateTime d) 
+  {
     String two(int x) => x.toString().padLeft(2, '0');
     return '${d.year}-${two(d.month)}-${two(d.day)}';
   }
 
-  Future<void> _pickDate(String workoutName, List<String> exercises) async {
+  Future<void> _pickDate(String workoutName, List<String> exercises) async 
+  {
     final picked = await showDatePicker(
       context: context,
       initialDate: _activeDate,
@@ -105,30 +121,87 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
 
     if (normalized == _activeDate) return;
 
-    setState(() {
+    setState(() 
+    {
       _activeDate = normalized;
     });
 
     await _loadForDate(workoutName, exercises);
   }
 
+  void _stashActiveDrafts()
+  {
+    final copied = <String, List<SetDraft>>{};
+    _drafts.forEach((exercise, sets)
+    {
+      copied[exercise] = sets.map((s) => s.clone()).toList();
+    });
+
+    _draftsByDate[_activeIso] = copied;
+    _exerciseIndexByDate[_activeIso] = _exerciseIndex;
+  }
+
+  void _restoreDraftsForActiveDate({required List<String> exercises})
+  {
+    final cached = _draftsByDate[_activeIso];
+    if (cached == null) return;
+
+    for (final sets in _drafts.values) {
+      for (final d in sets) {
+        d.dispose();
+      }
+    }
+    _drafts.clear();
+
+    for (final ex in exercises) {
+      final sets = cached[ex] ?? <SetDraft>[];
+      _drafts[ex] = sets.map((s) => s.clone()).toList();
+    }
+
+    _exerciseIndex = (_exerciseIndexByDate[_activeIso] ?? 0)
+      .clamp(0, exercises.length - 1);
+  }
+
+  void _clearAllCachedDrafts() {
+    for (final sets in _drafts.values) {
+      for (final d in sets) {
+        d.dispose();
+      }
+    }
+    _drafts.clear();
+
+    for (final perDate in _draftsByDate.values) {
+      for (final sets in perDate.values) {
+        for (final d in sets) {
+          d.dispose();
+        }
+      }
+    }
+    _draftsByDate.clear();
+    _exerciseIndexByDate.clear();
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) 
+  {
     final workouts = ref.watch(workoutsProvider).value ?? const [];
     final idx = workouts.indexWhere((w) => w.name == widget.workoutName);
 
-    if (idx == -1) {
+    if (idx == -1) 
+    {
       return const Scaffold(body: Center(child: Text('Workout not found.')));
     }
 
     final workout = workouts[idx];
     final exercises = workout.exercises;
 
-    if (exercises.isEmpty) {
+    if (exercises.isEmpty) 
+    {
       return const Scaffold(body: Center(child: Text('Workout has no exercises.')));
     }
 
-    if (!_initialized) {
+    if (!_initialized) 
+    {
       _initialized = true;
       _loadForDate(workout.name, exercises);
     }
@@ -142,11 +215,14 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
         leading: IconButton(
           icon: const Icon(Icons.close),
           tooltip: 'Close',
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () {
+            _clearAllCachedDrafts();
+            Navigator.of(context).pop();
+          },
         ),
         actions: [
           TextButton(
-            onPressed: () => _save(workout.name),
+            onPressed: () => _saveAll(workout.name),
             child: const Text('Save'),
           ),
         ],
@@ -347,60 +423,49 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _save(String workoutName) async {
-    // Convert drafts -> SessionLog
-    final byExercise = <String, List<SetLog>>{};
-
-    _drafts.forEach((exercise, sets) {
-      final parsed = sets
-          .map((d) => d.toSetLog())
-          // only keep sets where user recorded something
-          .where((s) => s.fullReps > 0 || s.partialReps > 0)
-          .toList();
-
-      if (parsed.isNotEmpty) byExercise[exercise] = parsed;
-    });
-
-    if (byExercise.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Record at least one set with reps.')),
-      );
-      return;
-    }
-
-    final session = SessionLog(
-      workoutName: workoutName,
-      dateIso: _dateIso(_activeDate),
-      byExercise: byExercise,
-    );
+  Future<void> _saveAll(String workoutName) async {
+    // Make sure the active date edits are included
+    _stashActiveDrafts();
 
     final db = ref.read(localDbProvider);
 
-    // Persist session
-    await db.upsertSession(session);
+    // Save every date we’ve touched in this “record session”
+    for (final entry in _draftsByDate.entries) {
+      final dateIso = entry.key; // YYYY-MM-DD
+      final perExerciseDrafts = entry.value; // Map<String, List<SetDraft>>
 
-    // Update defaults: last non-bodyweight weight used per exercise
-    for (final entry in byExercise.entries) {
-      final ex = entry.key;
-      final sets = entry.value;
-
-      double? maxWeight;
-
-      for (final s in sets)
-      {
-        if (!s.isBodyweight && s.weight != null)
-        {
-          if (maxWeight == null || s.weight! > maxWeight)
-          {
-            maxWeight = s.weight;
-          }
+      // Build byExercise from drafts (EMPTY IS ALLOWED)
+      final byExercise = <String, List<SetLog>>{};
+      for (final exEntry in perExerciseDrafts.entries) {
+        final exName = exEntry.key;
+        final setLogs = exEntry.value.map((d) => d.toSetLog()).toList();
+        if (setLogs.isNotEmpty) {
+          byExercise[exName] = setLogs;
         }
       }
 
-      if (maxWeight != null)
-      {
-        await db.setDefaultWeight(workoutName, ex, maxWeight);
+      final session = SessionLog(
+        workoutName: workoutName,
+        dateIso: dateIso,
+        byExercise: byExercise, // can be empty
+      );
+
+      await db.upsertSession(session);
+
+      // Update defaults for this date (optional but recommended):
+      // Use MAX weight in that day's workout (your current preference).
+      for (final ex in byExercise.keys) {
+        double? maxWeight;
+        for (final s in byExercise[ex]!) {
+          if (!s.isBodyweight && s.weight != null) {
+            if (maxWeight == null || s.weight! > maxWeight) {
+              maxWeight = s.weight;
+            }
+          }
+        }
+        if (maxWeight != null) {
+          await db.setDefaultWeight(workoutName, ex, maxWeight);
+        }
       }
     }
 
@@ -432,6 +497,15 @@ class SetDraft {
     required this.fullRepsController,
     required this.partialRepsController,
   });
+
+  SetDraft clone() {
+    return SetDraft(
+      isBodyweight: isBodyweight,
+      weightController: TextEditingController(text: weightController.text),
+      fullRepsController: TextEditingController(text: fullRepsController.text),
+      partialRepsController: TextEditingController(text: partialRepsController.text),
+    );
+  }
 
   factory SetDraft.fromSetLog(SetLog log) {
     return SetDraft(
