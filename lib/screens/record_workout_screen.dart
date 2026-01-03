@@ -211,7 +211,7 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Record • ${_dateIso(_activeDate)}'),
+        title: Text('Record • ${workout.name}'),
         leading: IconButton(
           icon: const Icon(Icons.close),
           tooltip: 'Close',
