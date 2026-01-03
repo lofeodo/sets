@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../model/workout.dart';
 import '../model/session_log.dart';
-import '../model/set_log.dart';
 
 class LocalDb 
 {
