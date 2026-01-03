@@ -385,13 +385,22 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
       final ex = entry.key;
       final sets = entry.value;
 
-      double? lastNonBw;
-      for (final s in sets) {
-        if (!s.isBodyweight && s.weight != null) lastNonBw = s.weight;
+      double? maxWeight;
+
+      for (final s in sets)
+      {
+        if (!s.isBodyweight && s.weight != null)
+        {
+          if (maxWeight == null || s.weight! > maxWeight)
+          {
+            maxWeight = s.weight;
+          }
+        }
       }
 
-      if (lastNonBw != null) {
-        await db.setDefaultWeight(workoutName, ex, lastNonBw);
+      if (maxWeight != null)
+      {
+        await db.setDefaultWeight(workoutName, ex, maxWeight);
       }
     }
 
