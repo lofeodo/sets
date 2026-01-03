@@ -81,6 +81,7 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
       _defaults[ex] = await db.getDefaultWeightForExercise(ex);
 
       final existing = await db.getExerciseLogForDay(
+        workoutName: workoutName,
         exerciseName: ex,
         dateIso: dateIso,
       );
@@ -451,6 +452,7 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
           exerciseKey: db.exerciseKey(exerciseName),
           exerciseName: exerciseName,
           dateIso: dateIso,
+          workoutKey: db.workoutKey(workoutName),
           workoutName: workoutName, // metadata
           sets: sets,
         );
