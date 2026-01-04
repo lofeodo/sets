@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/workouts_provider.dart';
 import '../model/workout.dart';
 
-class WorkoutFormScreen extends ConsumerStatefulWidget {
+class WorkoutFormScreen extends ConsumerStatefulWidget 
+{
   const WorkoutFormScreen({
     super.key,
     this.initialWorkout, // null = create, non-null = edit
@@ -20,14 +21,32 @@ class WorkoutFormScreen extends ConsumerStatefulWidget {
 class _WorkoutFormScreenState extends ConsumerState<WorkoutFormScreen> {
   late final TextEditingController _workoutNameController;
   late final List<String> _exercises;
+  List<String> _exerciseSuggestions = const [];
+  bool _loadingExerciseSuggestions = false;
 
   @override
-  void initState() {
+  void initState() 
+  {
     super.initState();
     _workoutNameController = TextEditingController(
       text: widget.initialWorkout?.name ?? '',
     );
     _exercises = [...(widget.initialWorkout?.exercises ?? const <String>[])];
+    _loadExerciseSuggestions();
+  }
+
+  Future<void> _loadExerciseSuggestions() async 
+  {
+    setState(() => _loadingExerciseSuggestions = true);
+
+    final db = ref.read(localDbProvider);
+    final list = await db.getAllExerciseNames();
+
+    if (!mounted) return;
+    setState(() {
+      _exerciseSuggestions = list;
+      _loadingExerciseSuggestions = false;
+    });
   }
 
   @override
@@ -36,7 +55,8 @@ class _WorkoutFormScreenState extends ConsumerState<WorkoutFormScreen> {
     super.dispose();
   }
 
-  Future<void> _save() async {
+  Future<void> _save() async 
+  {
     final notifier = ref.read(workoutsProvider.notifier);
 
     final error = widget.isEdit
@@ -63,8 +83,9 @@ class _WorkoutFormScreenState extends ConsumerState<WorkoutFormScreen> {
   }
 
   Future<void> _addExerciseDialog() async {
-    final controller = TextEditingController();
     String? errorText;
+
+    final textController = TextEditingController();
 
     await showDialog<void>(
       context: context,
@@ -72,32 +93,80 @@ class _WorkoutFormScreenState extends ConsumerState<WorkoutFormScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             void tryAdd() {
-              final name = controller.text.trim();
+              final name = textController.text.trim();
+
               if (name.isEmpty) {
                 setDialogState(() => errorText = 'Name cannot be empty.');
                 return;
               }
-              final exists = _exercises.any(
-                (e) => e.toLowerCase() == name.toLowerCase(),
-              );
+
+              final exists = _exercises.any((e) => e.toLowerCase() == name.toLowerCase());
               if (exists) {
                 setDialogState(() => errorText = 'Exercise already added.');
                 return;
               }
+
               setState(() => _exercises.add(name));
               Navigator.of(dialogContext).pop();
             }
 
+            final alreadyAddedKeys = _exercises.map((e) => e.toLowerCase()).toSet();
+
             return AlertDialog(
               title: const Text('Add exercise'),
-              content: TextField(
-                controller: controller,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Exercise name',
-                  errorText: errorText,
-                ),
-                onSubmitted: (_) => tryAdd(),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Autocomplete<String>(
+                    optionsBuilder: (TextEditingValue value) {
+                      final q = value.text.trim().toLowerCase();
+                      if (q.isEmpty) return const Iterable<String>.empty();
+
+                      return _exerciseSuggestions.where((s) {
+                        final key = s.toLowerCase();
+                        if (alreadyAddedKeys.contains(key)) return false; // don’t suggest duplicates
+                        return key.contains(q); // ✅ contains matching
+                      });
+                    },
+                    displayStringForOption: (s) => s,
+                    onSelected: (selection) {
+                      textController.text = selection;
+                      setDialogState(() => errorText = null);
+                    },
+                    fieldViewBuilder: (context, fieldTextController, focusNode, onFieldSubmitted) {
+                      // Keep Autocomplete’s controller in sync with ours
+                      fieldTextController.value = textController.value;
+
+                      fieldTextController.addListener(() {
+                        textController.value = fieldTextController.value;
+                        if (errorText != null) {
+                          setDialogState(() => errorText = null);
+                        }
+                      });
+
+                      return TextField(
+                        controller: fieldTextController,
+                        focusNode: focusNode,
+                        autofocus: true,
+                        decoration: InputDecoration(
+                          hintText: 'Exercise name',
+                          errorText: errorText,
+                          suffixIcon: _loadingExerciseSuggestions
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                )
+                              : null,
+                        ),
+                        onSubmitted: (_) => tryAdd(),
+                      );
+                    },
+                  ),
+                ],
               ),
               actions: [
                 TextButton(

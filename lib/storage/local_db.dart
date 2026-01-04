@@ -194,4 +194,37 @@ class LocalDb
     final raw = jsonEncode(updated.map((s) => s.toJson()).toList());
     await prefs.setString(_keySessions, raw);
   }
+
+  Future<List<String>> getAllExerciseNames() async 
+  {
+    final workouts = await loadWorkouts();
+    final logs = await loadExerciseLogs();
+
+    final seen = <String>{};
+    final out = <String>[];
+
+    void addName(String name) 
+    {
+      final trimmed = name.trim();
+      if (trimmed.isEmpty) return;
+      final key = trimmed.toLowerCase();
+      if (seen.add(key)) out.add(trimmed);
+    }
+
+    for (final w in workouts) 
+    {
+      for (final ex in w.exercises) 
+      {
+        addName(ex);
+      }
+    }
+
+    for (final l in logs) 
+    {
+      addName(l.exerciseName);
+    }
+
+    out.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return out;
+  }
 }
