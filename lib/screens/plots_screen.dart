@@ -153,161 +153,135 @@ class _PlotsScreenState extends ConsumerState<PlotsScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Plots')),
-      body: !_loadedPrefs
-          ? const Center(child: CircularProgressIndicator())
-          : workoutsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Error: $e')),
-              data: (workouts) {
-                // Collect unique exercise names across all workouts
-                final exerciseNames = <String>{};
-                for (final w in workouts) {
-                  exerciseNames.addAll(w.exercises);
-                }
-                final exercises = exerciseNames.toList()..sort();
+      body: workoutsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Error: $e')),
+        data: (workouts) {
+          final exerciseNames = <String>{};
+          for (final w in workouts) {
+            exerciseNames.addAll(w.exercises);
+          }
+          final exercises = exerciseNames.toList()..sort();
 
-                // Keep selection valid if workouts changed
-                if (_selectedExercise != null &&
-                    !exerciseNames.contains(_selectedExercise)) {
-                  _selectedExercise = null;
-                }
+          if (_selectedExercise != null &&
+              !exerciseNames.contains(_selectedExercise)) {
+            _selectedExercise = null;
+          }
 
-                final axes = AxisOption.values;
+          final is2DReady =
+              _selectedExercise != null && _xAxis != null && _yAxis != null;
+          final is3DReady = is2DReady && _zAxis != null;
 
-                bool isAxisDisabled(AxisOption option, {required String which}) {
-                  // Disable if used by another axis (ignoring nulls).
-                  final usedByOther = (which != 'x' && _xAxis == option) ||
-                      (which != 'y' && _yAxis == option) ||
-                      (which != 'z' && _zAxis == option);
-                  return usedByOther;
-                }
+          final portraitWidth = MediaQuery.of(context).size.width;
 
-                final is2DReady = _selectedExercise != null &&
-                    _xAxis != null &&
-                    _yAxis != null;
-                final is3DReady = is2DReady && _zAxis != null;
+          return SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Exercise selector
+                  DropdownButtonFormField<String>(
+                    value: _selectedExercise,
+                    decoration: const InputDecoration(
+                      labelText: 'Exercise',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: exercises
+                        .map(
+                          (name) => DropdownMenuItem(
+                            value: name,
+                            child: Text(name),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) {
+                      setState(() => _selectedExercise = v);
+                      _saveAxesPrefs();
+                    },
+                  ),
 
-                return Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                  const SizedBox(height: 16),
+
+                  // Axis selectors
+                  Row(
                     children: [
-                      // Exercise selector
-                      DropdownButtonFormField<String>(
-                        value: _selectedExercise,
-                        decoration: const InputDecoration(
-                          labelText: 'Exercise',
-                          border: OutlineInputBorder(),
+                      Expanded(
+                        child: _AxisDropdown(
+                          label: 'X axis',
+                          value: _xAxis,
+                          options: _availableOptionsFor('x'),
+                          allowNone: false,
+                          onChanged: (v) => _setAxis(which: 'x', value: v),
                         ),
-                        items: exercises
-                            .map(
-                              (name) => DropdownMenuItem(
-                                value: name,
-                                child: Text(name),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (v) {
-                          setState(() => _selectedExercise = v);
-                          _saveAxesPrefs();
-                        },
                       ),
-
-                      const SizedBox(height: 16),
-
-                      // Axis selectors
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _AxisDropdown(
-                              label: 'X axis',
-                              value: _xAxis,
-                              allowNone: false,
-                              options: _availableOptionsFor('x'),
-                              isDisabled: (opt) =>
-                                  isAxisDisabled(opt, which: 'x'),
-                              onChanged: (v) => _setAxis(which: 'x', value: v),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _AxisDropdown(
-                              label: 'Y axis',
-                              value: _yAxis,
-                              options: _availableOptionsFor('y'),
-                              allowNone: false,
-                              isDisabled: (opt) =>
-                                  isAxisDisabled(opt, which: 'y'),
-                              onChanged: (v) => _setAxis(which: 'y', value: v),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _AxisDropdown(
-                              label: 'Z axis',
-                              value: _zAxis,
-                              options: _availableOptionsFor('z'),
-                              allowNone: true, // <-- allows "None" for 2D
-                              isDisabled: (opt) =>
-                                  isAxisDisabled(opt, which: 'z'),
-                              onChanged: (v) => _setAxis(which: 'z', value: v),
-                            ),
-                          ),
-                        ],
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _AxisDropdown(
+                          label: 'Y axis',
+                          value: _yAxis,
+                          options: _availableOptionsFor('y'),
+                          allowNone: false,
+                          onChanged: (v) => _setAxis(which: 'y', value: v),
+                        ),
                       ),
-
-                      const SizedBox(height: 16),
-
-                      // Placeholder plot area
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final media = MediaQuery.of(context);
-
-                          // This is the width the plot would have in portrait mode
-                          final portraitWidth = media.size.width;
-
-                          return Center(
-                            child: SizedBox(
-                              width: portraitWidth,
-                              height: portraitWidth, // <- keeps it square
-                              child: Container(
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: Theme.of(context).dividerColor,
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                padding: const EdgeInsets.all(16),
-                                child: is2DReady
-                                    ? Text(
-                                        is3DReady
-                                            ? '3D Plot Placeholder\n\n'
-                                                'Exercise: $_selectedExercise\n'
-                                                'X: ${_xAxis!.label}   '
-                                                'Y: ${_yAxis!.label}   '
-                                                'Z: ${_zAxis!.label}'
-                                            : '2D Plot Placeholder\n\n'
-                                                'Exercise: $_selectedExercise\n'
-                                                'X: ${_xAxis!.label}   '
-                                                'Y: ${_yAxis!.label}\n\n'
-                                                '(Z axis is None)',
-                                        textAlign: TextAlign.center,
-                                      )
-                                    : const Text(
-                                        'Select an exercise and choose X and Y axes.\n(Optional: choose Z for 3D.)',
-                                        textAlign: TextAlign.center,
-                                      ),
-                              ),
-                            ),
-                          );
-                        },
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _AxisDropdown(
+                          label: 'Z axis',
+                          value: _zAxis,
+                          options: _availableOptionsFor('z'),
+                          allowNone: true,
+                          onChanged: (v) => _setAxis(which: 'z', value: v),
+                        ),
                       ),
                     ],
                   ),
-                );
-              },
+
+                  const SizedBox(height: 16),
+
+                  // Square plot placeholder
+                  Center(
+                    child: SizedBox(
+                      width: portraitWidth,
+                      height: portraitWidth,
+                      child: Container(
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: Theme.of(context).dividerColor,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.all(16),
+                        child: is2DReady
+                            ? Text(
+                                is3DReady
+                                    ? '3D Plot Placeholder\n\n'
+                                        'Exercise: $_selectedExercise\n'
+                                        'X: ${_xAxis!.label}   '
+                                        'Y: ${_yAxis!.label}   '
+                                        'Z: ${_zAxis!.label}'
+                                    : '2D Plot Placeholder\n\n'
+                                        'Exercise: $_selectedExercise\n'
+                                        'X: ${_xAxis!.label}   '
+                                        'Y: ${_yAxis!.label}\n\n'
+                                        '(Z axis is None)',
+                                textAlign: TextAlign.center,
+                              )
+                            : const Text(
+                                'Select an exercise and choose X and Y axes.\n(Optional: choose Z for 3D.)',
+                                textAlign: TextAlign.center,
+                              ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
+          );
+        },
+      ),
     );
   }
 }
@@ -317,7 +291,6 @@ class _AxisDropdown extends StatelessWidget {
   final AxisOption? value;
   final List<AxisOption> options;
   final bool allowNone;
-  final bool Function(AxisOption) isDisabled;
   final ValueChanged<AxisOption?> onChanged;
 
   const _AxisDropdown({
@@ -325,7 +298,6 @@ class _AxisDropdown extends StatelessWidget {
     required this.value,
     required this.options,
     required this.allowNone,
-    required this.isDisabled,
     required this.onChanged,
   });
 
@@ -344,10 +316,9 @@ class _AxisDropdown extends StatelessWidget {
             child: Text('None'),
           ),
         ...options.map((opt) {
-          final disabled = isDisabled(opt) && value != opt;
           return DropdownMenuItem<AxisOption>(
             value: opt,
-            enabled: !disabled,
+            enabled: true,
             child: Text(opt.label),
           );
         }),
