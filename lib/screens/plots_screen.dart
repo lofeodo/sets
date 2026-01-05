@@ -259,37 +259,49 @@ class _PlotsScreenState extends ConsumerState<PlotsScreen> {
                       const SizedBox(height: 16),
 
                       // Placeholder plot area
-                      Expanded(
-                        child: Container(
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: Theme.of(context).dividerColor,
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          padding: const EdgeInsets.all(16),
-                          child: is2DReady
-                              ? Text(
-                                  is3DReady
-                                      ? '3D Plot Placeholder\n\n'
-                                          'Exercise: $_selectedExercise\n'
-                                          'X: ${_xAxis!.label}   '
-                                          'Y: ${_yAxis!.label}   '
-                                          'Z: ${_zAxis!.label}\n\n'
-                                          '(We’ll render the 3D visualization here later.)'
-                                      : '2D Plot Placeholder\n\n'
-                                          'Exercise: $_selectedExercise\n'
-                                          'X: ${_xAxis!.label}   '
-                                          'Y: ${_yAxis!.label}\n\n'
-                                          '(Z axis is None)',
-                                  textAlign: TextAlign.center,
-                                )
-                              : const Text(
-                                  'Select an exercise and choose X and Y axes.\n(Optional: choose Z for 3D.)',
-                                  textAlign: TextAlign.center,
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final media = MediaQuery.of(context);
+
+                          // This is the width the plot would have in portrait mode
+                          final portraitWidth = media.size.width;
+
+                          return Center(
+                            child: SizedBox(
+                              width: portraitWidth,
+                              height: portraitWidth, // <- keeps it square
+                              child: Container(
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Theme.of(context).dividerColor,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                        ),
+                                padding: const EdgeInsets.all(16),
+                                child: is2DReady
+                                    ? Text(
+                                        is3DReady
+                                            ? '3D Plot Placeholder\n\n'
+                                                'Exercise: $_selectedExercise\n'
+                                                'X: ${_xAxis!.label}   '
+                                                'Y: ${_yAxis!.label}   '
+                                                'Z: ${_zAxis!.label}'
+                                            : '2D Plot Placeholder\n\n'
+                                                'Exercise: $_selectedExercise\n'
+                                                'X: ${_xAxis!.label}   '
+                                                'Y: ${_yAxis!.label}\n\n'
+                                                '(Z axis is None)',
+                                        textAlign: TextAlign.center,
+                                      )
+                                    : const Text(
+                                        'Select an exercise and choose X and Y axes.\n(Optional: choose Z for 3D.)',
+                                        textAlign: TextAlign.center,
+                                      ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),
