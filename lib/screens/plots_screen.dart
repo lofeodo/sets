@@ -4,9 +4,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../providers/sessions_provider.dart';
 import '../providers/workouts_provider.dart';
+import '../widgets/plots/plot_axis.dart';
+import '../widgets/plots/plot_spec.dart';
+import '../widgets/plots/plot_view.dart';
+import '../widgets/plots/plot_data_builder.dart';
 
 enum AxisOption { date, weight, reps, sets }
+
+PlotAxis _toPlotAxis(AxisOption a) {
+  switch (a) {
+    case AxisOption.date:
+      return PlotAxis.date;
+    case AxisOption.weight:
+      return PlotAxis.weight;
+    case AxisOption.reps:
+      return PlotAxis.reps;
+    case AxisOption.sets:
+      return PlotAxis.sets;
+  }
+}
 
 extension AxisOptionLabel on AxisOption {
   String get label {
@@ -150,6 +168,7 @@ class _PlotsScreenState extends ConsumerState<PlotsScreen> {
   @override
   Widget build(BuildContext context) {
     final workoutsAsync = ref.watch(workoutsProvider);
+    final sessionsAsync = ref.watch(sessionsProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Plots')),
@@ -254,25 +273,31 @@ class _PlotsScreenState extends ConsumerState<PlotsScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         padding: const EdgeInsets.all(16),
-                        child: is2DReady
-                            ? Text(
-                                is3DReady
-                                    ? '3D Plot Placeholder\n\n'
-                                        'Exercise: $_selectedExercise\n'
-                                        'X: ${_xAxis!.label}   '
-                                        'Y: ${_yAxis!.label}   '
-                                        'Z: ${_zAxis!.label}'
-                                    : '2D Plot Placeholder\n\n'
-                                        'Exercise: $_selectedExercise\n'
-                                        'X: ${_xAxis!.label}   '
-                                        'Y: ${_yAxis!.label}\n\n'
-                                        '(Z axis is None)',
-                                textAlign: TextAlign.center,
-                              )
-                            : const Text(
+                        child: (!is2DReady)
+                            ? const Text(
                                 'Select an exercise and choose X and Y axes.\n(Optional: choose Z for 3D.)',
                                 textAlign: TextAlign.center,
+                              )
+                            : sessionsAsync.when(
+                                loading: () => const Center(child: CircularProgressIndicator()),
+                                error: (e, _) => Center(child: Text('Error: $e')),
+                                data: (sessions) {
+                                  final spec = PlotSpec(
+                                    exercise: _selectedExercise!, // safe because is2DReady
+                                    xAxis: _toPlotAxis(_xAxis!),
+                                    yAxis: _toPlotAxis(_yAxis!),
+                                    zAxis: _zAxis == null ? null : _toPlotAxis(_zAxis!),
+                                  );
+
+                                  final data = PlotDataBuilder.build(
+                                    spec: spec,
+                                    sessions: sessions,
+                                  );
+
+                                  return PlotView(spec: spec, data: data);
+                                },
                               ),
+
                       ),
                     ),
                   ),
