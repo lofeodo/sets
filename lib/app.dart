@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/workouts_screen.dart';
+import 'screens/main_screen.dart';
 
 class MyApp extends StatelessWidget
 {
@@ -12,7 +12,7 @@ class MyApp extends StatelessWidget
       title: 'sets',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: true),
-      home: const WorkoutsScreen(),
+      home: const MainScreen(),
     );
   }
 }
