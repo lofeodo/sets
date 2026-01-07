@@ -13,6 +13,17 @@ class MyApp extends StatelessWidget
       title: 'sets',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark(),
+      
+      // Account for navigation bar
+      builder: (context, child)
+      {
+        if (child == null) return const SizedBox.shrink();
+        return SafeArea(
+          top: false,
+          child: child
+        );
+      },
+
       home: const MainScreen(),
     );
   }
