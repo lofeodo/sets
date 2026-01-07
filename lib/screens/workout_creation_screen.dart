@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/workouts_provider.dart';
 import '../model/workout.dart';
+import '../ui/add_exercise_sheet.dart';
 import '../ui/confirm_destructive_sheet.dart';
 
 class WorkoutCreationScreen extends ConsumerStatefulWidget 
@@ -109,110 +110,22 @@ class _WorkoutCreationScreenState extends ConsumerState<WorkoutCreationScreen> {
     Navigator.of(context).pop();
   }
 
-  Future<void> _addExerciseDialog() async {
-    String? errorText;
+  Future<void> _addExerciseSheet() async
+  {
+    final alreadyAddedKeys = _exercises.map((e) => e.toLowerCase()).toSet();
 
-    final textController = TextEditingController();
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            void tryAdd() {
-              final name = textController.text.trim();
-
-              if (name.isEmpty) {
-                setDialogState(() => errorText = 'Name cannot be empty.');
-                return;
-              }
-
-              final exists = _exercises.any((e) => e.toLowerCase() == name.toLowerCase());
-              if (exists) {
-                setDialogState(() => errorText = 'Exercise already added.');
-                return;
-              }
-
-              setState(() => _exercises.add(name));
-              Navigator.of(dialogContext).pop();
-            }
-
-            final alreadyAddedKeys = _exercises.map((e) => e.toLowerCase()).toSet();
-
-            return AlertDialog(
-              title: Text(
-                'Add exercise',
-                style: Theme.of(context).textTheme.titleSmall),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Autocomplete<String>(
-                    optionsBuilder: (TextEditingValue value) {
-                      final q = value.text.trim().toLowerCase();
-                      if (q.isEmpty) return const Iterable<String>.empty();
-
-                      return _exerciseSuggestions.where((s) {
-                        final key = s.toLowerCase();
-                        if (alreadyAddedKeys.contains(key)) return false; // don’t suggest duplicates
-                        return key.contains(q); // ✅ contains matching
-                      });
-                    },
-                    displayStringForOption: (s) => s,
-                    onSelected: (selection) {
-                      textController.text = selection;
-                      setDialogState(() => errorText = null);
-                    },
-                    fieldViewBuilder: (context, fieldTextController, focusNode, onFieldSubmitted) {
-                      // Keep Autocomplete’s controller in sync with ours
-                      fieldTextController.value = textController.value;
-
-                      fieldTextController.addListener(() {
-                        textController.value = fieldTextController.value;
-                        if (errorText != null) {
-                          setDialogState(() => errorText = null);
-                        }
-                      });
-
-                      return TextField(
-                        controller: fieldTextController,
-                        textCapitalization: TextCapitalization.sentences,
-                        focusNode: focusNode,
-                        autofocus: true,
-                        decoration: InputDecoration(
-                          hintText: 'Exercise name',
-                          errorText: errorText,
-                          suffixIcon: _loadingExerciseSuggestions
-                              ? const Padding(
-                                  padding: EdgeInsets.all(12),
-                                  child: SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  ),
-                                )
-                              : null,
-                        ),
-                        onSubmitted: (_) => tryAdd(),
-                      );
-                    },
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: tryAdd,
-                  child: const Text('Add'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+    final name = await showAddExerciseSheet(
+      context,
+      suggestions: _exerciseSuggestions,
+      alreadyAddedKeysLower: alreadyAddedKeys,
+      loadingSuggestions: _loadingExerciseSuggestions
     );
+
+    if (!mounted) return;
+
+    if (name == null) return;
+
+    setState(() => _exercises.add(name));
   }
 
   @override
@@ -267,7 +180,7 @@ class _WorkoutCreationScreenState extends ConsumerState<WorkoutCreationScreen> {
                   ),
                 ),
                 IconButton(
-                  onPressed: _addExerciseDialog,
+                  onPressed: _addExerciseSheet,
                   icon: const Icon(Icons.add),
                   tooltip: 'Add exercise',
                 ),
