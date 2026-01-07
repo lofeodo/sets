@@ -37,6 +37,7 @@ dependencies:
 
   flutter_riverpod: ^2.5.1
   shared_preferences: ^2.3.2
+  fl_chart: ^0.66.0
 
 dev_dependencies:
   flutter_test:
