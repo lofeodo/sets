@@ -6,7 +6,7 @@ import 'plot_axis.dart';
 import 'plot_spec.dart';
 import 'plot_data.dart';
 
-class Plot2DView extends StatelessWidget {
+class Plot2DView extends StatefulWidget {
   final PlotSpec spec;
   final PlotData data;
 
@@ -17,8 +17,13 @@ class Plot2DView extends StatelessWidget {
   });
 
   @override
+  State<Plot2DView> createState() => _Plot2DViewState();
+}
+
+class _Plot2DViewState extends State<Plot2DView> {
+  @override
   Widget build(BuildContext context) {
-    final points = data.points2D ?? const <PlotPoint2D>[];
+    final points = widget.data.points2D ?? const <PlotPoint2D>[];
 
     if (points.isEmpty) {
       return const Center(
@@ -29,12 +34,30 @@ class Plot2DView extends StatelessWidget {
       );
     }
 
-    // Sort by x so the line renders properly.
+    // Sort by x (x is ms since epoch when xAxis == date)
     final sorted = [...points]..sort((a, b) => a.x.compareTo(b.x));
 
-    final spots = sorted.map((p) => FlSpot(p.x, p.y)).toList();
+    final xIsDate = widget.spec.xAxis == PlotAxis.date;
 
-    // Compute bounds (fl_chart can do it, but explicit bounds helps titles + stability).
+    // --- Key fix: if x is date, use a linear index for the chart's x-coordinate ---
+    late final List<FlSpot> spots;
+    late final List<DateTime> dateByIndex;
+
+    if (xIsDate) {
+      dateByIndex = sorted
+          .map((p) => DateTime.fromMillisecondsSinceEpoch(p.x.round()))
+          .toList();
+
+      spots = List.generate(
+        sorted.length,
+        (i) => FlSpot(i.toDouble(), sorted[i].y),
+      );
+    } else {
+      dateByIndex = const [];
+      spots = sorted.map((p) => FlSpot(p.x, p.y)).toList();
+    }
+
+    // Compute bounds
     double minX = spots.first.x, maxX = spots.first.x;
     double minY = spots.first.y, maxY = spots.first.y;
 
@@ -45,6 +68,7 @@ class Plot2DView extends StatelessWidget {
       if (s.y > maxY) maxY = s.y;
     }
 
+    // Avoid degenerate ranges
     if (minX == maxX) {
       minX -= 1;
       maxX += 1;
@@ -54,10 +78,23 @@ class Plot2DView extends StatelessWidget {
       maxY += 1;
     }
 
-    final xIsDate = spec.xAxis == PlotAxis.date;
+    // Tick intervals
+    final bottomInterval = xIsDate
+        ? _dateTickInterval(spots.length) // linear index ticks
+        : _niceInterval(minX, maxX, targetTicks: 4);
+
+    final leftInterval = _niceInterval(minY, maxY, targetTicks: 4);
+    final yLabels = _yTickLabels(minY, maxY, leftInterval, _fmtNum);
+    final leftReserved = _measureMaxLabelWidth(
+      context,
+      yLabels,
+      fontSize: 11,
+      extraPadding: 10,
+    );
+
 
     return Padding(
-      padding: const EdgeInsets.all(8),
+      padding: EdgeInsets.zero,
       child: LineChart(
         LineChartData(
           minX: minX,
@@ -65,27 +102,37 @@ class Plot2DView extends StatelessWidget {
           minY: minY,
           maxY: maxY,
 
-          // Grid + border
           gridData: FlGridData(show: true),
-          borderData: FlBorderData(show: true),
+          borderData: FlBorderData(
+            show: true,
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outline,
+              width: 1
+            )
+          ),
 
-          // Axis titles
           titlesData: FlTitlesData(
             topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
 
             bottomTitles: AxisTitles(
-              axisNameWidget: Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(spec.xAxis.label),
-              ),
-              axisNameSize: 28,
               sideTitles: SideTitles(
                 showTitles: true,
-                reservedSize: 42,
-                interval: _niceInterval(minX, maxX, targetTicks: 4),
+                reservedSize: 36,
+                interval: bottomInterval,
                 getTitlesWidget: (value, meta) {
-                  final text = xIsDate ? _fmtDateFromMs(value) : _fmtNum(value);
+                  String text;
+
+                  if (xIsDate) {
+                    final idx = value.round();
+                    if (idx < 0 || idx >= dateByIndex.length) {
+                      return const SizedBox.shrink();
+                    }
+                    text = _fmtDate(dateByIndex[idx]);
+                  } else {
+                    text = _fmtNum(value);
+                  }
+
                   return SideTitleWidget(
                     axisSide: meta.axisSide,
                     child: Text(text, style: const TextStyle(fontSize: 11)),
@@ -95,15 +142,10 @@ class Plot2DView extends StatelessWidget {
             ),
 
             leftTitles: AxisTitles(
-              axisNameWidget: Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(spec.yAxis.label),
-              ),
-              axisNameSize: 32,
               sideTitles: SideTitles(
                 showTitles: true,
-                reservedSize: 42,
-                interval: _niceInterval(minY, maxY, targetTicks: 4),
+                reservedSize: leftReserved,
+                interval: leftInterval,
                 getTitlesWidget: (value, meta) {
                   return SideTitleWidget(
                     axisSide: meta.axisSide,
@@ -114,15 +156,17 @@ class Plot2DView extends StatelessWidget {
             ),
           ),
 
-          // Touch interaction + tooltips
           lineTouchData: LineTouchData(
             enabled: true,
             handleBuiltInTouches: true,
             touchTooltipData: LineTouchTooltipData(
               getTooltipItems: (touchedSpots) {
                 return touchedSpots.map((ts) {
-                  final xLabel = xIsDate ? _fmtDateFromMs(ts.x) : _fmtNum(ts.x);
+                  final xLabel = xIsDate
+                      ? _fmtDate(dateByIndex[ts.x.round().clamp(0, dateByIndex.length - 1)])
+                      : _fmtNum(ts.x);
                   final yLabel = _fmtNum(ts.y);
+
                   return LineTooltipItem(
                     '$xLabel\n$yLabel',
                     const TextStyle(fontSize: 12),
@@ -132,7 +176,6 @@ class Plot2DView extends StatelessWidget {
             ),
           ),
 
-          // Data
           lineBarsData: [
             LineChartBarData(
               spots: spots,
@@ -148,8 +191,16 @@ class Plot2DView extends StatelessWidget {
   }
 }
 
-/// Pick a reasonable interval so you don't get 100 labels.
-/// For date axis, your x values are big (ms since epoch), so we ensure interval behaves.
+/// For date-as-index x-axis: pick an interval that yields ~6 labels max.
+double _dateTickInterval(int n) {
+  if (n <= 1) return 1;
+  if (n <= 6) return 1;
+  if (n <= 12) return 2;
+  if (n <= 20) return 3;
+  return (n / 6).ceilToDouble();
+}
+
+/// General-purpose interval for numeric axes.
 double _niceInterval(double min, double max, {required int targetTicks}) {
   final range = (max - min).abs();
   if (range == 0) return 1;
@@ -157,7 +208,6 @@ double _niceInterval(double min, double max, {required int targetTicks}) {
   final raw = range / targetTicks;
   final mag = _pow10((raw.log10()).floor());
 
-  // Try 1, 2, 5 * magnitude
   final candidates = [1 * mag, 2 * mag, 5 * mag, 10 * mag];
 
   double best = candidates.first;
@@ -185,20 +235,68 @@ extension on double {
   double log10() => (this <= 0) ? 0 : (log(this) / ln10);
 }
 
-String _fmtNum(double v) {
-  final av = v.abs();
-  if (av >= 1000) return v.toStringAsFixed(0);
-  if (av >= 100) return v.toStringAsFixed(1);
-  if (av >= 10) return v.toStringAsFixed(2);
-  return v.toStringAsFixed(3);
-}
+String _fmtNum(double v) => v.toStringAsFixed(1);
 
-String _fmtDateFromMs(double ms) {
-  final dt = DateTime.fromMillisecondsSinceEpoch(ms.round());
+String _fmtDate(DateTime dt) {
   const months = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ];
-  final m = months[dt.month - 1];
-  return '$m ${dt.day}';
+  return '${months[dt.month - 1]} ${dt.day}';
+}
+
+double _measureMaxLabelWidth(
+  BuildContext context,
+  List<String> labels, {
+  double fontSize = 11,
+  double extraPadding = 10,
+}) {
+  final style = Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: fontSize)
+      ?? TextStyle(fontSize: fontSize);
+
+  double maxWidth = 0;
+
+  for (final t in labels) {
+    final tp = TextPainter(
+      text: TextSpan(text: t, style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+
+    if (tp.width > maxWidth) maxWidth = tp.width;
+  }
+
+  return maxWidth + extraPadding;
+}
+
+List<String> _yTickLabels(
+  double minY,
+  double maxY,
+  double interval,
+  String Function(double) fmt,
+) {
+  if (interval <= 0 || minY.isNaN || maxY.isNaN) {
+    return [fmt(minY), fmt(maxY)];
+  }
+
+  final start = (minY / interval).floor() * interval;
+
+  final labels = <String>[];
+  const maxTicks = 64;
+
+  double v = start;
+  int count = 0;
+
+  while (v <= maxY + interval && count < maxTicks) {
+    if (v >= minY - 1e-9 && v <= maxY + 1e-9) {
+      labels.add(fmt(v));
+    }
+    v += interval;
+    count++;
+  }
+
+  labels.add(fmt(minY));
+  labels.add(fmt(maxY));
+
+  return labels.toSet().toList();
 }
