@@ -40,7 +40,6 @@ class AppTheme {
           fontSize: FontSizes.headerSmall,
         ),
 
-        // Keep your sizing preferences (still VT323)
         titleLarge: text.titleLarge?.copyWith(fontSize: FontSizes.titleLarge),
         titleMedium: text.titleMedium?.copyWith(fontSize: FontSizes.titleMedium),
         titleSmall: text.titleSmall?.copyWith(fontSize: FontSizes.titleSmall),
@@ -54,11 +53,18 @@ class AppTheme {
         labelSmall: text.labelSmall?.copyWith(fontSize: FontSizes.labelSmall),
       ),
 
-      // IMPORTANT: no global centering here
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
+      ),
+
+      datePickerTheme: DatePickerThemeData(
+        headerHeadlineStyle: const TextStyle(
+          fontFamily: 'JetBrainsMono',
+          fontSize: FontSizes.titleMedium,
+          fontWeight: FontWeight.w400,
+        ),
       ),
     );
   }
