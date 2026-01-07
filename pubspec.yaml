@@ -106,6 +106,11 @@ flutter:
         - asset: assets/fonts/aeogo_box/AeogoBox-Regular.ttf
         - asset: assets/fonts/aeogo_box/AeogoBox-Italic.ttf
           style: italic
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/jetbrains_mono/JetBrainsMono-Regular.ttf
+        - asset: assets/fonts/jetbrains_mono/JetBrainsMono-Italic.ttf
+          style: italic
     - family: VT323
       fonts:
         - asset: assets/fonts/vt323/VT323-Regular.ttf
