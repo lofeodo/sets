@@ -3,8 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/workouts_provider.dart';
-import 'workout_form_screen.dart';
+import 'workout_creation_screen.dart';
 import 'workout_details_screen.dart';
+import '../ui/confirm_destructive_sheet.dart';
 
 class WorkoutsScreen extends ConsumerWidget
 {
@@ -38,10 +39,17 @@ class WorkoutsScreen extends ConsumerWidget
                 subtitle: Text('${workout.exercises.length} exercises'),
                 trailing: IconButton(
                   icon: const Icon(Icons.delete_outline),
-                  onPressed: ()
-                  {
+                  onPressed: () async {
+                    final ok = await showDestructiveConfirmSheet(
+                      context,
+                      title: 'Delete workout?',
+                      message: 'This will remove “${workout.name}” and its configuration.',
+                      confirmText: 'Delete',
+                    );
+                    if (!ok) return;
+
                     ref.read(workoutsProvider.notifier).deleteWorkout(workout.name);
-                  },
+                  }
                 ),
                 onTap: () 
                 {
@@ -59,7 +67,7 @@ class WorkoutsScreen extends ConsumerWidget
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const WorkoutFormScreen()),
+            MaterialPageRoute(builder: (_) => const WorkoutCreationScreen()),
           );
         },
         child: const Icon(Icons.add),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/workouts_provider.dart';
-import 'workout_form_screen.dart';
+import 'workout_creation_screen.dart';
 import 'record_workout_screen.dart';
 
 class WorkoutDetailsScreen extends ConsumerWidget {
@@ -43,7 +43,7 @@ class WorkoutDetailsScreen extends ConsumerWidget {
                 onPressed: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => WorkoutFormScreen(initialWorkout: workout),
+                      builder: (_) => WorkoutCreationScreen(initialWorkout: workout),
                     ),
                   );
                 },
