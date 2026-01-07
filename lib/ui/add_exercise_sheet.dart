@@ -20,12 +20,15 @@ Future<String?> showAddExerciseSheet(
   final result = await showModalBottomSheet<String>(
     context: context,
     useSafeArea: true,
-    isScrollControlled: true, // ADDED: allows sheet to rise with keyboard
+    isScrollControlled: true,
     showDragHandle: true,
     builder: (ctx)
     {
       final theme = Theme.of(ctx);
-      final bottomSafe = MediaQuery.of(ctx).viewPadding.bottom;
+      final mq = MediaQuery.of(ctx);
+      final bottomInset = (mq.viewInsets.bottom > 0)
+          ? mq.viewInsets.bottom
+          : mq.viewPadding.bottom;
 
       void tryAdd(StateSetter setSheetState)
       {
@@ -52,101 +55,97 @@ Future<String?> showAddExerciseSheet(
         builder: (context, setSheetState)
         {
           return AnimatedPadding(
-            // ADDED: keyboard-safe padding, animated
             duration: const Duration(milliseconds: 150),
             curve: Curves.easeOut,
-            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            padding: EdgeInsets.only(bottom: bottomInset),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(16, 4, 16, 16 + bottomSafe),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(icon, color: theme.colorScheme.primary),
-                      title: Text(title, style: theme.textTheme.titleLarge),
-                      subtitle: const Padding(
-                        padding: EdgeInsets.only(top: 6),
-                        child: Text('Search or type a new exercise.'),
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(icon, color: theme.colorScheme.primary),
+                    title: Text(title, style: theme.textTheme.titleLarge),
+                    subtitle: const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: Text('Type a new exercise.'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  Autocomplete<String>(
+                    optionsBuilder: (value)
+                    {
+                      final q = value.text.trim().toLowerCase();
+                      if (q.isEmpty) return const Iterable<String>.empty();
+
+                      return suggestions.where((s)
+                      {
+                        final key = s.toLowerCase();
+                        if (alreadyAddedKeysLower.contains(key)) return false;
+                        return key.contains(q);
+                      });
+                    },
+                    displayStringForOption: (s) => s,
+                    onSelected: (selection)
+                    {
+                      fieldController?.text = selection;
+                      setSheetState(() => errorText = null);
+                    },
+                    fieldViewBuilder: (context, textController, focusNode, onFieldSubmitted)
+                    {
+                      // ADDED: capture the controller so tryAdd() can read it
+                      fieldController ??= textController;
+
+                      return TextField(
+                        controller: textController,
+                        focusNode: focusNode,
+                        autofocus: true,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: InputDecoration(
+                          hintText: hintText,
+                          errorText: errorText,
+                          suffixIcon: loadingSuggestions
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                )
+                              : null,
+                        ),
+                        onChanged: (_) {
+                          if (errorText != null) {
+                            setSheetState(() => errorText = null);
+                          }
+                        },
+                        onSubmitted: (_) => tryAdd(setSheetState),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(ctx).pop(null),
+                          child: Text(cancelText),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    Autocomplete<String>(
-                      optionsBuilder: (value)
-                      {
-                        final q = value.text.trim().toLowerCase();
-                        if (q.isEmpty) return const Iterable<String>.empty();
-
-                        return suggestions.where((s)
-                        {
-                          final key = s.toLowerCase();
-                          if (alreadyAddedKeysLower.contains(key)) return false;
-                          return key.contains(q);
-                        });
-                      },
-                      displayStringForOption: (s) => s,
-                      onSelected: (selection)
-                      {
-                        fieldController?.text = selection;
-                        setSheetState(() => errorText = null);
-                      },
-                      fieldViewBuilder: (context, textController, focusNode, onFieldSubmitted)
-                      {
-                        // ADDED: capture the controller so tryAdd() can read it
-                        fieldController ??= textController;
-
-                        return TextField(
-                          controller: textController,
-                          focusNode: focusNode,
-                          autofocus: true,
-                          textCapitalization: TextCapitalization.sentences,
-                          decoration: InputDecoration(
-                            hintText: hintText,
-                            errorText: errorText,
-                            suffixIcon: loadingSuggestions
-                                ? const Padding(
-                                    padding: EdgeInsets.all(12),
-                                    child: SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    ),
-                                  )
-                                : null,
-                          ),
-                          onChanged: (_) {
-                            if (errorText != null) {
-                              setSheetState(() => errorText = null);
-                            }
-                          },
-                          onSubmitted: (_) => tryAdd(setSheetState),
-                        );
-                      },
-                    ),
-
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.of(ctx).pop(null),
-                            child: Text(cancelText),
-                          ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () => tryAdd(setSheetState),
+                          child: Text(confirmText),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: () => tryAdd(setSheetState),
-                            child: Text(confirmText),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           );
