@@ -107,6 +107,112 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
     await _loadForDate(workoutName, exercises);
   }
 
+  // true if this date has ANY sets (either cached drafts or saved in DB)
+  bool _dateHasAnyDraftSets(String dateIso) {
+    // Check cached drafts first (including current date once stashed)
+    final cached = _draftsByDate[dateIso];
+    if (cached == null) return false;
+
+    for (final sets in cached.values) {
+      if (sets.isNotEmpty) return true;
+    }
+    return false;
+  }
+
+  // checks DB for any sets logged on a date (across all exercises)
+  Future<bool> _dateHasAnySavedSets(
+    String workoutName,
+    List<String> exercises,
+    String dateIso,
+  ) async {
+    final db = ref.read(localDbProvider);
+
+    for (final ex in exercises) {
+      final existing = await db.getExerciseLogForDay(
+        workoutName: workoutName,
+        exerciseName: ex,
+        dateIso: dateIso,
+      );
+
+      final savedSets = existing?.sets ?? const <SetLog>[];
+      if (savedSets.isNotEmpty) return true;
+    }
+    return false;
+  }
+
+  // find nearest previous date with a workout (cached OR saved)
+  Future<DateTime?> _findPrevWorkoutDate(String workoutName, List<String> exercises) async {
+    final firstDate = DateTime(2000, 1, 1);
+
+    // Make sure current date is cached before searching
+    _stashActiveDrafts();
+
+    DateTime d = _activeDate.subtract(const Duration(days: 1));
+    while (!d.isBefore(firstDate)) {
+      final iso = _dateIso(d);
+
+      if (_dateHasAnyDraftSets(iso)) return d;
+
+      final hasSaved = await _dateHasAnySavedSets(workoutName, exercises, iso);
+      if (hasSaved) return d;
+
+      d = d.subtract(const Duration(days: 1));
+    }
+    return null;
+  }
+
+  // find nearest next date with a workout (cached OR saved), up to today
+  Future<DateTime?> _findNextWorkoutDate(String workoutName, List<String> exercises) async {
+    // Make sure current date is cached before searching
+    _stashActiveDrafts();
+
+    DateTime d = _activeDate.add(const Duration(days: 1));
+    while (!d.isAfter(_today)) {
+      final iso = _dateIso(d);
+
+      if (_dateHasAnyDraftSets(iso)) return d;
+
+      final hasSaved = await _dateHasAnySavedSets(workoutName, exercises, iso);
+      if (hasSaved) return d;
+
+      d = d.add(const Duration(days: 1));
+    }
+    return null;
+  }
+
+  Future<void> _jumpToDate(DateTime target, String workoutName, List<String> exercises) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    _stashActiveDrafts();
+    _activeDate = DateTime(target.year, target.month, target.day);
+    await _loadForDate(workoutName, exercises);
+  }
+
+  Future<void> _goPrevWorkout(String workoutName, List<String> exercises) async {
+    final target = await _findPrevWorkoutDate(workoutName, exercises);
+    if (target == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No previous recorded workout found.')),
+      );
+      return;
+    }
+    await _jumpToDate(target, workoutName, exercises);
+  }
+
+  Future<void> _goNextWorkout(String workoutName, List<String> exercises) async {
+    if (!_canGoNext) return;
+
+    final target = await _findNextWorkoutDate(workoutName, exercises);
+    if (target == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No next recorded workout found.')),
+      );
+      return;
+    }
+    await _jumpToDate(target, workoutName, exercises);
+  }
+
   Future<void> _loadForDate(String workoutName, List<String> exercises) async {
     // 1) If we already have this date in cache, restore it and exit.
     if (_draftsByDate.containsKey(_activeIso)) {
@@ -341,10 +447,17 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
             Row(
               children: [
                 IconButton(
+                  icon: const Icon(Icons.keyboard_double_arrow_left),
+                  tooltip: 'Previous workout',
+                  onPressed: () => _goPrevWorkout(workout.name, exercises),
+                ),
+
+                IconButton(
                   icon: const Icon(Icons.chevron_left),
                   onPressed: () => _goPrev(workout.name, exercises),
                   tooltip: 'Previous day',
                 ),
+
                 Expanded(
                   child: Center(
                     child: InkWell(
@@ -360,10 +473,19 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
                     ),
                   ),
                 ),
+
                 IconButton(
                   icon: const Icon(Icons.chevron_right),
                   onPressed: _canGoNext ? () => _goNext(workout.name, exercises) : null,
                   tooltip: 'Next day',
+                ),
+
+                IconButton(
+                  icon: const Icon(Icons.keyboard_double_arrow_right),
+                  tooltip: 'Next workout',
+                  onPressed: _canGoNext
+                      ? () => _goNextWorkout(workout.name, exercises)
+                      : null,
                 ),
               ],
             ),
