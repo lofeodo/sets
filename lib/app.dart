@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/main_screen.dart';
+import 'theme/app_colors.dart';
 
 class MyApp extends StatelessWidget
 {
@@ -19,21 +20,21 @@ class MyApp extends StatelessWidget
 
         // Color system
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFF2F2F2),
+          seedColor: AppColors.accent,
           brightness: Brightness.dark,
-          surface: const Color(0xFF1E1E1E),
-          onSurface: const Color(0xFFF2F2F2)
+          surface: AppColors.surface,
+          onSurface: AppColors.textPrimary
         ),
 
         // Global text color
         textTheme: const TextTheme(
-          bodyLarge: TextStyle(color: Color(0xFFF2F2F2)),
-          bodyMedium: TextStyle(color: Color(0xFFF2F2F2)),
-          bodySmall: TextStyle(color: Color(0xFFF2F2F2)),
-          titleLarge: TextStyle(color: Color(0xFFF2F2F2)),
-          titleMedium: TextStyle(color: Color(0xFFF2F2F2)),
-          titleSmall: TextStyle(color: Color(0xFFF2F2F2)),
-          labelLarge: TextStyle(color: Color(0xFFF2F2F2)),
+          bodyLarge: TextStyle(color: AppColors.textPrimary),
+          bodyMedium: TextStyle(color: AppColors.textPrimary),
+          bodySmall: TextStyle(color: AppColors.textPrimary),
+          titleLarge: TextStyle(color: AppColors.textPrimary),
+          titleMedium: TextStyle(color: AppColors.textPrimary),
+          titleSmall: TextStyle(color: AppColors.textPrimary),
+          labelLarge: TextStyle(color: AppColors.textPrimary),
         )
       ),
       home: const MainScreen(),
