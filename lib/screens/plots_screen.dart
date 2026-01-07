@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../providers/sessions_provider.dart';
+import '../providers/plot_sessions_provider.dart';
 import '../providers/workouts_provider.dart';
 import '../widgets/plots/plot_axis.dart';
 import '../widgets/plots/plot_spec.dart';
@@ -168,7 +168,7 @@ class _PlotsScreenState extends ConsumerState<PlotsScreen> {
   @override
   Widget build(BuildContext context) {
     final workoutsAsync = ref.watch(workoutsProvider);
-    final sessionsAsync = ref.watch(sessionsProvider);
+    final sessionsAsync = ref.watch(plotSessionsProvider);
     final dropdownTextStyle = Theme.of(context).textTheme.bodyMedium;
 
     return Scaffold(
