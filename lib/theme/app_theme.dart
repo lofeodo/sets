@@ -1,73 +1,64 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
+import 'font_sizes.dart';
 
 class AppTheme {
   static ThemeData dark() {
     final base = ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-
-      // Background color
       scaffoldBackgroundColor: const Color(0xFF1E1E1E),
-
-      // Color system
       colorScheme: ColorScheme.fromSeed(
         seedColor: AppColors.accent,
         brightness: Brightness.dark,
         surface: AppColors.surface,
         onSurface: AppColors.textPrimary,
       ),
+    );
 
-      // Default body font
-      fontFamily: 'Inter',
+    // Apply body text everywhere by default
+    final text = base.textTheme.apply(
+      fontFamily: 'JetBrainsMono',
+      bodyColor: AppColors.textPrimary,
+      displayColor: AppColors.textPrimary,
     );
 
     return base.copyWith(
-      textTheme: base.textTheme.copyWith(
-        // ===== HEADERS (AeogoBox) =====
-        headlineLarge: const TextStyle(
+      textTheme: text.copyWith(
+        // Headers only
+        headlineLarge: text.headlineLarge?.copyWith(
           fontFamily: 'AeogoBox',
-          fontSize: 40,
-          color: AppColors.textPrimary,
+          fontStyle: FontStyle.italic,
+          fontSize: FontSizes.headerLarge,
         ),
-        headlineMedium: const TextStyle(
+        headlineMedium: text.headlineMedium?.copyWith(
           fontFamily: 'AeogoBox',
-          fontSize: 35,
-          color: AppColors.textPrimary,
+          fontSize: FontSizes.headerMedium,
         ),
-        titleLarge: const TextStyle(
-          fontFamily: 'VT323',
-          fontSize: 30,
-          color: AppColors.textPrimary,
+        headlineSmall: text.headlineSmall?.copyWith(
+          fontFamily: 'AeogoBox',
+          fontSize: FontSizes.headerSmall,
         ),
 
-        // ===== BODY (Inter) =====
-        bodyLarge: const TextStyle(
-          fontSize: 16,
-          height: 1.4,
-          color: AppColors.textPrimary,
-        ),
-        bodyMedium: const TextStyle(
-          fontSize: 14,
-          height: 1.4,
-          color: AppColors.textPrimary,
-        ),
-        bodySmall: const TextStyle(
-          fontSize: 12,
-          color: AppColors.textPrimary,
-        ),
+        // Keep your sizing preferences (still VT323)
+        titleLarge: text.titleLarge?.copyWith(fontSize: FontSizes.titleLarge),
+        titleMedium: text.titleMedium?.copyWith(fontSize: FontSizes.titleMedium),
+        titleSmall: text.titleSmall?.copyWith(fontSize: FontSizes.titleSmall),
 
-        // ===== LABELS =====
-        labelLarge: const TextStyle(
-          fontSize: 14,
-          color: AppColors.textPrimary,
-        ),
-        titleMedium: const TextStyle(
-          color: AppColors.textPrimary,
-        ),
-        titleSmall: const TextStyle(
-          color: AppColors.textPrimary,
-        ),
+        bodyLarge: text.bodyLarge?.copyWith(fontSize: FontSizes.bodyLarge, height: 1.4),
+        bodyMedium: text.bodyMedium?.copyWith(fontSize: FontSizes.bodyMedium, height: 1.4),
+        bodySmall: text.bodySmall?.copyWith(fontSize: FontSizes.bodySmall),
+
+        labelLarge: text.labelLarge?.copyWith(fontSize: FontSizes.labelLarge),
+        labelMedium: text.labelMedium?.copyWith(fontSize: FontSizes.labelMedium),
+        labelSmall: text.labelSmall?.copyWith(fontSize: FontSizes.labelSmall),
+      ),
+
+      // IMPORTANT: no global centering here
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
       ),
     );
   }
