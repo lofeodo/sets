@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/local_db_provider.dart';
 import '../providers/workouts_provider.dart';
 import '../model/set_log.dart';
 import '../model/exercise_day_log.dart';

@@ -1,10 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../storage/local_db.dart';
 import '../model/workout.dart';
-
-
-// provide the local database (persistence layer)
-final localDbProvider = Provider<LocalDb>((ref) => LocalDb());
+import 'local_db_provider.dart';
 
 // expose the list of workouts to the ui (loading/error/data)
 final workoutsProvider = 
