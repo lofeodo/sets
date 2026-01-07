@@ -95,6 +95,21 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
 
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/inter/Inter-Regular.ttf
+        - asset: assets/fonts/inter/Inter-Italic.ttf
+          style: italic
+    - family: AeogoBox
+      fonts:
+        - asset: assets/fonts/aeogo_box/AeogoBox-Regular.ttf
+        - asset: assets/fonts/aeogo_box/AeogoBox-Italic.ttf
+          style: italic
+    - family: VT323
+      fonts:
+        - asset: assets/fonts/vt323/VT323-Regular.ttf
+
 flutter_launcher_icons:
   android: true
   ios: true
