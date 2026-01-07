@@ -18,13 +18,7 @@ class Plot3DView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Text(
-        '3D Plot\n'
-        '${spec.exercise}\n'
-        'X: ${spec.xAxis.label}, '
-        'Y: ${spec.yAxis.label}, '
-        'Z: ${spec.zAxis?.label}\n'
-        'Points: ${data.points3D?.length ?? 0}',
-        textAlign: TextAlign.center,
+        'Interactive 3D plots coming soon.'
       ),
     );
   }
