@@ -361,10 +361,6 @@ class _AxisDropdown extends StatelessWidget {
                 )
               ]
             )
-            // child: Text(
-            //   'None',
-            //   style: dropdownTextStyle,
-            // ),
           ),
         ...options.map((opt) {
           return DropdownMenuItem<AxisOption>(
@@ -382,10 +378,6 @@ class _AxisDropdown extends StatelessWidget {
                 )
               ]
             )
-            // child: Text(
-            //   opt.label,
-            //   style: dropdownTextStyle,
-            // ),
           );
         }),
       ],
