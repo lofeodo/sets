@@ -270,12 +270,12 @@ class _PlotsScreenState extends ConsumerState<PlotsScreen> {
                       height: portraitWidth,
                       child: Container(
                         alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: Theme.of(context).dividerColor,
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        // decoration: BoxDecoration(
+                        //   border: Border.all(
+                        //     color: Theme.of(context).dividerColor,
+                        //   ),
+                        //   borderRadius: BorderRadius.circular(12),
+                        // ),
                         padding: const EdgeInsets.all(16),
                         child: (!is2DReady)
                             ? const Text(

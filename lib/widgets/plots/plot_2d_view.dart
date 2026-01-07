@@ -79,9 +79,10 @@ class Plot2DView extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(spec.xAxis.label),
               ),
+              axisNameSize: 28,
               sideTitles: SideTitles(
                 showTitles: true,
-                reservedSize: 32,
+                reservedSize: 42,
                 interval: _niceInterval(minX, maxX, targetTicks: 4),
                 getTitlesWidget: (value, meta) {
                   final text = xIsDate ? _fmtDateFromMs(value) : _fmtNum(value);
@@ -98,9 +99,10 @@ class Plot2DView extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(spec.yAxis.label),
               ),
+              axisNameSize: 32,
               sideTitles: SideTitles(
                 showTitles: true,
-                reservedSize: 48,
+                reservedSize: 42,
                 interval: _niceInterval(minY, maxY, targetTicks: 4),
                 getTitlesWidget: (value, meta) {
                   return SideTitleWidget(
