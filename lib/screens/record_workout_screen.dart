@@ -92,6 +92,7 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
 
   Future<void> _goPrev(String workoutName, List<String> exercises) async 
   {
+    FocusManager.instance.primaryFocus?.unfocus();
     _stashActiveDrafts();
     _activeDate = _activeDate.subtract(const Duration(days: 1));
     await _loadForDate(workoutName, exercises);
@@ -100,6 +101,7 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
   Future<void> _goNext(String workoutName, List<String> exercises) async 
   {
     if (!_canGoNext) return;
+    FocusManager.instance.primaryFocus?.unfocus();
     _stashActiveDrafts();
     _activeDate = _activeDate.add(const Duration(days: 1));
     await _loadForDate(workoutName, exercises);
@@ -279,7 +281,7 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
 
         if (!ok) return;
 
-        _clearAllCachedDrafts();
+        FocusManager.instance.primaryFocus?.unfocus();
         if (context.mounted) Navigator.of(context).pop();
       },
       child: Scaffold(
@@ -301,7 +303,7 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
                 if (!ok) return;
               }
 
-              _clearAllCachedDrafts();
+              FocusManager.instance.primaryFocus?.unfocus();
               if (context.mounted) Navigator.of(context).pop();
             },
           ),
@@ -576,6 +578,20 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
         d.dispose();
       }
     }
+    _drafts.clear();
+
+    for (final perDate in _draftsByDate.values)
+    {
+      for (final sets in perDate.values)
+      {
+        for (final d in sets)
+        {
+          d.dispose();
+        }
+      }
+    }
+    _draftsByDate.clear();
+
     super.dispose();
   }
 }
