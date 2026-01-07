@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/workouts_provider.dart';
 import '../model/workout.dart';
+import '../ui/confirm_destructive_sheet.dart';
 
 class WorkoutCreationScreen extends ConsumerStatefulWidget 
 {
@@ -53,6 +54,32 @@ class _WorkoutCreationScreenState extends ConsumerState<WorkoutCreationScreen> {
   void dispose() {
     _workoutNameController.dispose();
     super.dispose();
+  }
+
+  bool get _isDirty
+  {
+    final name = _workoutNameController.text.trim();
+    final initial = widget.initialWorkout;
+
+    // Create mode
+    if (initial == null)
+    {
+      return name.isNotEmpty || _exercises.isNotEmpty;
+    }
+
+    // Edit mode
+    final initialName = initial.name.trim();
+    final initialExercises = initial.exercises.map((e) => e.trim()).toList();
+
+    if (name != initialName) return true;
+    if (_exercises.length != initialExercises.length) return true;
+
+    for (int i = 0; i < _exercises.length; i++)
+    {
+      if (_exercises[i].trim() != initialExercises[i]) return true;
+    }
+
+    return false;
   }
 
   Future<void> _save() async 
@@ -189,60 +216,79 @@ class _WorkoutCreationScreenState extends ConsumerState<WorkoutCreationScreen> {
   Widget build(BuildContext context) {
     final title = widget.isEdit ? 'Edit workout' : 'New workout';
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        actions: [
-          TextButton(
-            onPressed: _save,
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          TextField(
-            controller: _workoutNameController,
-            decoration: const InputDecoration(
-              labelText: 'Workout name',
+    return PopScope(
+      canPop: !_isDirty,
+      onPopInvoked: (didPop) async
+      {
+        if (didPop) return;
+
+        final ok = await showDestructiveConfirmSheet(
+          context, 
+          title: 'Discard changes?', 
+          message: 'You have unsaved changes to this workout.', 
+          confirmText: 'Discard',
+        );
+
+        if (ok && context.mounted)
+        {
+          Navigator.of(context).pop();
+        }
+      },
+      child:Scaffold(
+        appBar: AppBar(
+          title: Text(title),
+          actions: [
+            TextButton(
+              onPressed: _save,
+              child: const Text('Save'),
             ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Exercises',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
+          ],
+        ),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextField(
+              controller: _workoutNameController,
+              decoration: const InputDecoration(
+                labelText: 'Workout name',
               ),
-              IconButton(
-                onPressed: _addExerciseDialog,
-                icon: const Icon(Icons.add),
-                tooltip: 'Add exercise',
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (_exercises.isEmpty)
-            const Text('Add at least one exercise.')
-          else
-            ..._exercises.asMap().entries.map((entry) {
-              final index = entry.key;
-              final name = entry.value;
-              return Card(
-                child: ListTile(
-                  title: Text(name),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => setState(() => _exercises.removeAt(index)),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Exercises',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ),
-              );
-            }),
-        ],
-      ),
+                IconButton(
+                  onPressed: _addExerciseDialog,
+                  icon: const Icon(Icons.add),
+                  tooltip: 'Add exercise',
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (_exercises.isEmpty)
+              const Text('Add at least one exercise.')
+            else
+              ..._exercises.asMap().entries.map((entry) {
+                final index = entry.key;
+                final name = entry.value;
+                return Card(
+                  child: ListTile(
+                    title: Text(name),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => setState(() => _exercises.removeAt(index)),
+                    ),
+                  ),
+                );
+              }),
+          ],
+        ),
+      )
     );
   }
 }
