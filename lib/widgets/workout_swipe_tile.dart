@@ -6,17 +6,19 @@ import '../ui/confirm_destructive_sheet.dart';
 import '../screens/workout_creation_screen.dart';
 
 class WorkoutSwipeTile extends ConsumerStatefulWidget {
-  static const double editTrigger = 0.2;
-  static const double deleteTrigger = 0.3;
-  static const double fadeWindow = 0.07;
+  static const double editTrigger = 0.15;
+  static const double deleteTrigger = 0.35;
+  static const double fadeWindow = 0.1;
 
   final dynamic workout;
   final VoidCallback onOpenDetails;
+  final Widget? leading;
 
   const WorkoutSwipeTile({
     super.key,
     required this.workout,
     required this.onOpenDetails,
+    this.leading,
   });
 
   @override
@@ -134,6 +136,7 @@ class _WorkoutSwipeTileState extends ConsumerState<WorkoutSwipeTile>
                 child: Material(
                   color: Theme.of(context).colorScheme.surface,
                   child: ListTile(
+                    leading: widget.leading,
                     title: Text(workout.name),
                     subtitle: Text('${workout.exercises.length} exercises'),
                     trailing: const Icon(Icons.chevron_right),
