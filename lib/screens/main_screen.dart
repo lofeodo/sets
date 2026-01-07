@@ -32,6 +32,13 @@ class _MainScreenState extends State<MainScreen>
   Widget build(BuildContext context) 
   {
     return Scaffold(
+      appBar: AppBar(
+        centerTitle: true,
+        title: Text(
+          'sets',
+          style: Theme.of(context).textTheme.headlineLarge,
+        ),
+      ),
       body: IndexedStack(
         index: _tabIndex,
         children: _tabs.map((t) => t.screen).toList(),

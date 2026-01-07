@@ -169,6 +169,7 @@ class _PlotsScreenState extends ConsumerState<PlotsScreen> {
   Widget build(BuildContext context) {
     final workoutsAsync = ref.watch(workoutsProvider);
     final sessionsAsync = ref.watch(sessionsProvider);
+    final dropdownTextStyle = Theme.of(context).textTheme.bodyMedium;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Plots')),
@@ -210,7 +211,10 @@ class _PlotsScreenState extends ConsumerState<PlotsScreen> {
                         .map(
                           (name) => DropdownMenuItem(
                             value: name,
-                            child: Text(name),
+                            child: Text(
+                              name,
+                              style: dropdownTextStyle,
+                              ),
                           ),
                         )
                         .toList(),
@@ -328,23 +332,34 @@ class _AxisDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dropdownTextStyle = Theme.of(context).textTheme.bodyMedium;
+    final labelTextStyle = Theme.of(context).textTheme.labelMedium;
+
     return DropdownButtonFormField<AxisOption>(
       value: value,
+      style: dropdownTextStyle,
       decoration: InputDecoration(
         labelText: label,
+        labelStyle: labelTextStyle,
         border: const OutlineInputBorder(),
       ),
       items: [
         if (allowNone)
-          const DropdownMenuItem<AxisOption>(
+          DropdownMenuItem<AxisOption>(
             value: null,
-            child: Text('None'),
+            child: Text(
+              'None',
+              style: dropdownTextStyle,
+              ),
           ),
         ...options.map((opt) {
           return DropdownMenuItem<AxisOption>(
             value: opt,
             enabled: true,
-            child: Text(opt.label),
+            child: Text(
+              opt.label,
+              style: dropdownTextStyle,
+              ),
           );
         }),
       ],
