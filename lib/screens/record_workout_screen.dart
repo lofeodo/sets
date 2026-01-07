@@ -297,7 +297,7 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
                 final ok = await showDestructiveConfirmSheet(
                   context, 
                   title: 'Discard unfinished changes?', 
-                  message: 'Your unsaved recording will be cleared.', 
+                  message: 'Any unsaved recording will be cleared.', 
                   confirmText: 'Discard',
                 );
                 if (!ok) return;
