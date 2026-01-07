@@ -332,34 +332,60 @@ class _AxisDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dropdownTextStyle = Theme.of(context).textTheme.bodyMedium;
+    final dropdownTextStyle = Theme.of(context).textTheme.labelMedium;
     final labelTextStyle = Theme.of(context).textTheme.labelMedium;
 
     return DropdownButtonFormField<AxisOption>(
       value: value,
+      isExpanded: true,
       style: dropdownTextStyle,
       decoration: InputDecoration(
         labelText: label,
         labelStyle: labelTextStyle,
         border: const OutlineInputBorder(),
+        isDense: true
       ),
       items: [
         if (allowNone)
           DropdownMenuItem<AxisOption>(
             value: null,
-            child: Text(
-              'None',
-              style: dropdownTextStyle,
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'None',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                  )
+                )
+              ]
+            )
+            // child: Text(
+            //   'None',
+            //   style: dropdownTextStyle,
+            // ),
           ),
         ...options.map((opt) {
           return DropdownMenuItem<AxisOption>(
             value: opt,
             enabled: true,
-            child: Text(
-              opt.label,
-              style: dropdownTextStyle,
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    opt.label, 
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                  )
+                )
+              ]
+            )
+            // child: Text(
+            //   opt.label,
+            //   style: dropdownTextStyle,
+            // ),
           );
         }),
       ],
