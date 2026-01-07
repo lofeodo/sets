@@ -1,10 +1,12 @@
+import 'dart:math';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import 'plot_axis.dart';
 import 'plot_spec.dart';
 import 'plot_data.dart';
 
-class Plot2DView extends StatelessWidget {
+class Plot2DView extends StatefulWidget {
   final PlotSpec spec;
   final PlotData data;
 
@@ -15,8 +17,13 @@ class Plot2DView extends StatelessWidget {
   });
 
   @override
+  State<Plot2DView> createState() => _Plot2DViewState();
+}
+
+class _Plot2DViewState extends State<Plot2DView> {
+  @override
   Widget build(BuildContext context) {
-    final points = data.points2D ?? const <PlotPoint2D>[];
+    final points = widget.data.points2D ?? const <PlotPoint2D>[];
 
     if (points.isEmpty) {
       return const Center(
@@ -27,71 +34,41 @@ class Plot2DView extends StatelessWidget {
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.all(8),
-      child: CustomPaint(
-        painter: _Plot2DPainter(
-          points: points,
-          xLabel: spec.xAxis.label,
-          yLabel: spec.yAxis.label,
-          xIsDate: spec.xAxis == PlotAxis.date,
-        ),
-        child: const SizedBox.expand(),
-      ),
-    );
-  }
-}
+    // Sort by x (x is ms since epoch when xAxis == date)
+    final sorted = [...points]..sort((a, b) => a.x.compareTo(b.x));
 
-class _Plot2DPainter extends CustomPainter {
-  final List<PlotPoint2D> points;
-  final String xLabel;
-  final String yLabel;
-  final bool xIsDate;
+    final xIsDate = widget.spec.xAxis == PlotAxis.date;
 
-  _Plot2DPainter({
-    required this.points,
-    required this.xLabel,
-    required this.yLabel,
-    required this.xIsDate,
-  });
+    // --- Key fix: if x is date, use a linear index for the chart's x-coordinate ---
+    late final List<FlSpot> spots;
+    late final List<DateTime> dateByIndex;
 
-  static const double _padLeft = 52;
-  static const double _padBottom = 44;
-  static const double _padTop = 16;
-  static const double _padRight = 12;
+    if (xIsDate) {
+      dateByIndex = sorted
+          .map((p) => DateTime.fromMillisecondsSinceEpoch(p.x.round()))
+          .toList();
 
-  static const int _xTicks = 4;
-  static const int _yTicks = 4;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Rect.fromLTWH(
-      _padLeft,
-      _padTop,
-      (size.width - _padLeft - _padRight).clamp(0, double.infinity),
-      (size.height - _padTop - _padBottom).clamp(0, double.infinity),
-    );
-
-    // Border
-    final borderPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-
-    canvas.drawRect(rect, borderPaint);
-
-    // Bounds
-    double minX = points.first.x;
-    double maxX = points.first.x;
-    double minY = points.first.y;
-    double maxY = points.first.y;
-
-    for (final p in points) {
-      if (p.x < minX) minX = p.x;
-      if (p.x > maxX) maxX = p.x;
-      if (p.y < minY) minY = p.y;
-      if (p.y > maxY) maxY = p.y;
+      spots = List.generate(
+        sorted.length,
+        (i) => FlSpot(i.toDouble(), sorted[i].y),
+      );
+    } else {
+      dateByIndex = const [];
+      spots = sorted.map((p) => FlSpot(p.x, p.y)).toList();
     }
 
+    // Compute bounds
+    double minX = spots.first.x, maxX = spots.first.x;
+    double minY = spots.first.y, maxY = spots.first.y;
+
+    for (final s in spots) {
+      if (s.x < minX) minX = s.x;
+      if (s.x > maxX) maxX = s.x;
+      if (s.y < minY) minY = s.y;
+      if (s.y > maxY) maxY = s.y;
+    }
+
+    // Avoid degenerate ranges
     if (minX == maxX) {
       minX -= 1;
       maxX += 1;
@@ -101,196 +78,225 @@ class _Plot2DPainter extends CustomPainter {
       maxY += 1;
     }
 
-    // Map data -> pixel
-    Offset toPixel(PlotPoint2D p) {
-      final nx = (p.x - minX) / (maxX - minX);
-      final ny = (p.y - minY) / (maxY - minY);
+    // Tick intervals
+    final bottomInterval = xIsDate
+        ? _dateTickInterval(spots.length) // linear index ticks
+        : _niceInterval(minX, maxX, targetTicks: 4);
 
-      final px = rect.left + nx * rect.width;
-      final py = rect.bottom - ny * rect.height;
-
-      return Offset(px, py);
-    }
-
-    // Sort by x for line plot
-    final sorted = [...points]..sort((a, b) => a.x.compareTo(b.x));
-    final mapped = sorted.map(toPixel).toList();
-
-    // Line
-    final linePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round;
-
-    final path = Path()..moveTo(mapped.first.dx, mapped.first.dy);
-    for (int i = 1; i < mapped.length; i++) {
-      path.lineTo(mapped[i].dx, mapped[i].dy);
-    }
-    canvas.drawPath(path, linePaint);
-
-    // Points
-    final pointPaint = Paint()..style = PaintingStyle.fill;
-    for (final m in mapped) {
-      canvas.drawCircle(m, 3, pointPaint);
-    }
-
-    // Ticks (x and y)
-    _drawXTicks(canvas, rect, minX, maxX);
-    _drawYTicks(canvas, rect, minY, maxY);
-
-    // Axis labels
-    _drawText(
-      canvas,
-      text: xLabel,
-      at: Offset(rect.center.dx, size.height - 16),
-      align: TextAlign.center,
+    final leftInterval = _niceInterval(minY, maxY, targetTicks: 4);
+    final yLabels = _yTickLabels(minY, maxY, leftInterval, _fmtNum);
+    final leftReserved = _measureMaxLabelWidth(
+      context,
+      yLabels,
+      fontSize: 11,
+      extraPadding: 10,
     );
 
-    _drawRotatedText(
-      canvas,
-      text: yLabel,
-      at: Offset(14, rect.center.dy),
+
+    return Padding(
+      padding: EdgeInsets.zero,
+      child: LineChart(
+        LineChartData(
+          minX: minX,
+          maxX: maxX,
+          minY: minY,
+          maxY: maxY,
+
+          gridData: FlGridData(show: true),
+          borderData: FlBorderData(
+            show: true,
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outline,
+              width: 1
+            )
+          ),
+
+          titlesData: FlTitlesData(
+            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 36,
+                interval: bottomInterval,
+                getTitlesWidget: (value, meta) {
+                  String text;
+
+                  if (xIsDate) {
+                    final idx = value.round();
+                    if (idx < 0 || idx >= dateByIndex.length) {
+                      return const SizedBox.shrink();
+                    }
+                    text = _fmtDate(dateByIndex[idx]);
+                  } else {
+                    text = _fmtNum(value);
+                  }
+
+                  return SideTitleWidget(
+                    axisSide: meta.axisSide,
+                    child: Text(text, style: const TextStyle(fontSize: 11)),
+                  );
+                },
+              ),
+            ),
+
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: leftReserved,
+                interval: leftInterval,
+                getTitlesWidget: (value, meta) {
+                  return SideTitleWidget(
+                    axisSide: meta.axisSide,
+                    child: Text(_fmtNum(value), style: const TextStyle(fontSize: 11)),
+                  );
+                },
+              ),
+            ),
+          ),
+
+          lineTouchData: LineTouchData(
+            enabled: true,
+            handleBuiltInTouches: true,
+            touchTooltipData: LineTouchTooltipData(
+              getTooltipItems: (touchedSpots) {
+                return touchedSpots.map((ts) {
+                  final xLabel = xIsDate
+                      ? _fmtDate(dateByIndex[ts.x.round().clamp(0, dateByIndex.length - 1)])
+                      : _fmtNum(ts.x);
+                  final yLabel = _fmtNum(ts.y);
+
+                  return LineTooltipItem(
+                    '$xLabel\n$yLabel',
+                    const TextStyle(fontSize: 12),
+                  );
+                }).toList();
+              },
+            ),
+          ),
+
+          lineBarsData: [
+            LineChartBarData(
+              spots: spots,
+              isCurved: false,
+              barWidth: 2,
+              dotData: FlDotData(show: true),
+              belowBarData: BarAreaData(show: false),
+            ),
+          ],
+        ),
+      ),
     );
   }
+}
 
-  void _drawXTicks(Canvas canvas, Rect rect, double minX, double maxX) {
-    final tickPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
+/// For date-as-index x-axis: pick an interval that yields ~6 labels max.
+double _dateTickInterval(int n) {
+  if (n <= 1) return 1;
+  if (n <= 6) return 1;
+  if (n <= 12) return 2;
+  if (n <= 20) return 3;
+  return (n / 6).ceilToDouble();
+}
 
-    final ticks = _linspace(minX, maxX, _xTicks);
+/// General-purpose interval for numeric axes.
+double _niceInterval(double min, double max, {required int targetTicks}) {
+  final range = (max - min).abs();
+  if (range == 0) return 1;
 
-    for (final t in ticks) {
-      final nx = (t - minX) / (maxX - minX);
-      final x = rect.left + nx * rect.width;
+  final raw = range / targetTicks;
+  final mag = _pow10((raw.log10()).floor());
 
-      // tick mark
-      canvas.drawLine(
-        Offset(x, rect.bottom),
-        Offset(x, rect.bottom + 4),
-        tickPaint,
-      );
+  final candidates = [1 * mag, 2 * mag, 5 * mag, 10 * mag];
 
-      final label = xIsDate ? _fmtDateFromMs(t) : _fmtNum(t);
+  double best = candidates.first;
+  double bestDiff = double.infinity;
 
-      // label under tick
-      _drawText(
-        canvas,
-        text: label,
-        at: Offset(x, rect.bottom + 14),
-        align: TextAlign.center,
-      );
+  for (final c in candidates) {
+    final ticks = range / c;
+    final diff = (ticks - targetTicks).abs();
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = c;
     }
   }
 
-  void _drawYTicks(Canvas canvas, Rect rect, double minY, double maxY) {
-    final tickPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
+  return best;
+}
 
-    final ticks = _linspace(minY, maxY, _yTicks);
+double _pow10(int exp) {
+  double v = 1;
+  for (int i = 0; i < exp; i++) v *= 10;
+  return v;
+}
 
-    for (final t in ticks) {
-      final ny = (t - minY) / (maxY - minY);
-      final y = rect.bottom - ny * rect.height;
+extension on double {
+  double log10() => (this <= 0) ? 0 : (log(this) / ln10);
+}
 
-      // tick mark
-      canvas.drawLine(
-        Offset(rect.left - 4, y),
-        Offset(rect.left, y),
-        tickPaint,
-      );
+String _fmtNum(double v) => v.toStringAsFixed(1);
 
-      final label = _fmtNum(t);
+String _fmtDate(DateTime dt) {
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  return '${months[dt.month - 1]} ${dt.day}';
+}
 
-      // label left of tick
-      _drawText(
-        canvas,
-        text: label,
-        at: Offset(6, y),
-        align: TextAlign.left,
-      );
-    }
-  }
+double _measureMaxLabelWidth(
+  BuildContext context,
+  List<String> labels, {
+  double fontSize = 11,
+  double extraPadding = 10,
+}) {
+  final style = Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: fontSize)
+      ?? TextStyle(fontSize: fontSize);
 
-  List<double> _linspace(double a, double b, int n) {
-    if (n <= 1) return [a];
-    final out = <double>[];
-    final step = (b - a) / (n - 1);
-    for (int i = 0; i < n; i++) {
-      out.add(a + step * i);
-    }
-    return out;
-  }
+  double maxWidth = 0;
 
-  String _fmtNum(double v) {
-    final av = v.abs();
-    if (av >= 1000) return v.toStringAsFixed(0);
-    if (av >= 100) return v.toStringAsFixed(1);
-    if (av >= 10) return v.toStringAsFixed(2);
-    return v.toStringAsFixed(3);
-  }
-
-  String _fmtDateFromMs(double ms) {
-    final dt = DateTime.fromMillisecondsSinceEpoch(ms.round());
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
-    final m = months[dt.month - 1];
-    return '$m ${dt.day}';
-  }
-
-  void _drawText(
-    Canvas canvas, {
-    required String text,
-    required Offset at,
-    required TextAlign align,
-  }) {
+  for (final t in labels) {
     final tp = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: const TextStyle(fontSize: 11),
-      ),
+      text: TextSpan(text: t, style: style),
       textDirection: TextDirection.ltr,
-      textAlign: align,
       maxLines: 1,
-      ellipsis: '…',
     )..layout();
 
-    final dx = align == TextAlign.center ? at.dx - tp.width / 2 : at.dx;
-    tp.paint(canvas, Offset(dx, at.dy - tp.height / 2));
+    if (tp.width > maxWidth) maxWidth = tp.width;
   }
 
-  void _drawRotatedText(
-    Canvas canvas, {
-    required String text,
-    required Offset at,
-  }) {
-    canvas.save();
-    canvas.translate(at.dx, at.dy);
-    canvas.rotate(-3.141592653589793 / 2); // -pi/2
+  return maxWidth + extraPadding;
+}
 
-    final tp = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: const TextStyle(fontSize: 11),
-      ),
-      textDirection: TextDirection.ltr,
-      textAlign: TextAlign.center,
-      maxLines: 1,
-      ellipsis: '…',
-    )..layout();
-
-    tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
-    canvas.restore();
+List<String> _yTickLabels(
+  double minY,
+  double maxY,
+  double interval,
+  String Function(double) fmt,
+) {
+  if (interval <= 0 || minY.isNaN || maxY.isNaN) {
+    return [fmt(minY), fmt(maxY)];
   }
 
-  @override
-  bool shouldRepaint(covariant _Plot2DPainter oldDelegate) {
-    return oldDelegate.points != points ||
-        oldDelegate.xLabel != xLabel ||
-        oldDelegate.yLabel != yLabel ||
-        oldDelegate.xIsDate != xIsDate;
+  final start = (minY / interval).floor() * interval;
+
+  final labels = <String>[];
+  const maxTicks = 64;
+
+  double v = start;
+  int count = 0;
+
+  while (v <= maxY + interval && count < maxTicks) {
+    if (v >= minY - 1e-9 && v <= maxY + 1e-9) {
+      labels.add(fmt(v));
+    }
+    v += interval;
+    count++;
   }
+
+  labels.add(fmt(minY));
+  labels.add(fmt(maxY));
+
+  return labels.toSet().toList();
 }

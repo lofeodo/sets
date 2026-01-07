@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/exercise_logs_provider.dart';
+import '../providers/local_db_provider.dart';
+import '../providers/plot_sessions_provider.dart';
 import '../providers/workouts_provider.dart';
 import '../model/set_log.dart';
 import '../model/exercise_day_log.dart';
@@ -689,6 +692,8 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
         );
 
         await db.upsertExerciseLog(log);
+        ref.invalidate(exerciseLogsProvider);
+        ref.invalidate(plotSessionsProvider);
 
         // Update default weight for this exercise = max weight used in this log
         double? maxWeight;
