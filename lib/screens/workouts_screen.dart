@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// import 'package:flutter_slidable/flutter_slidable.dart';
 import '../providers/workouts_provider.dart';
 import 'workout_creation_screen.dart';
 import 'record_workout_screen.dart';
