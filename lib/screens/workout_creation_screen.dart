@@ -173,6 +173,7 @@ class _WorkoutCreationScreenState extends ConsumerState<WorkoutCreationScreen> {
 
                       return TextField(
                         controller: fieldTextController,
+                        textCapitalization: TextCapitalization.sentences,
                         focusNode: focusNode,
                         autofocus: true,
                         decoration: InputDecoration(
@@ -249,6 +250,7 @@ class _WorkoutCreationScreenState extends ConsumerState<WorkoutCreationScreen> {
           children: [
             TextField(
               controller: _workoutNameController,
+              textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(
                 labelText: 'Workout name',
               ),
