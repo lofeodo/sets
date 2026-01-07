@@ -186,6 +186,27 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
     await _loadForDate(workoutName, exercises);
   }
 
+  double? _defaultWeightForNewSet(String exerciseName) {
+    // 1) Prefer today's existing draft weight for THIS exercise
+    final setsToday = _drafts[exerciseName];
+    if (setsToday != null && setsToday.isNotEmpty) {
+      for (int i = setsToday.length - 1; i >= 0; i--) {
+        final s = setsToday[i];
+
+        // Skip bodyweight sets
+        if (s.isBodyweight) continue;
+
+        // Use the most recent valid weight
+        final txt = s.weightController.text.trim();
+        final w = double.tryParse(txt);
+        if (w != null) return w;
+      }
+    }
+
+    // 2) Fallback: saved default (your "max weight" logic)
+    return _defaults[exerciseName];
+  }
+
   void _stashActiveDrafts()
   {
     final copied = <String, List<SetDraft>>{};
@@ -396,9 +417,8 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
                   tooltip: 'Add set',
                   onPressed: () {
                     setState(() {
-                      currentSets.add(
-                        SetDraft.withDefaultWeight(_defaults[currentExercise]),
-                      );
+                      final w = _defaultWeightForNewSet(currentExercise);
+                      currentSets.add(SetDraft.withDefaultWeight(w));
                     });
                   },
                 ),
@@ -439,7 +459,7 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
                                     } else {
                                       // Restore default if empty
                                       if (set.weightController.text.trim().isEmpty) {
-                                        final d = _defaults[currentExercise];
+                                        final d = _defaultWeightForNewSet(currentExercise);
                                         if (d != null) {
                                           set.weightController.text = d.toString();
                                         }
