@@ -209,6 +209,7 @@ class _ActionTile extends StatelessWidget {
   });
 
   static const double _outerInset = 6; // space from row edges
+  static const double _innerInset = 6; // inner padding
 
   @override
   Widget build(BuildContext context) {
@@ -223,23 +224,30 @@ class _ActionTile extends StatelessWidget {
             width: size,
             height: size,
             margin: const EdgeInsets.all(_outerInset),
+            padding: const EdgeInsets.all(_innerInset),
             decoration: BoxDecoration(
               color: background,
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: foreground),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: foreground,
-                      ),
-                ),
-              ],
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, color: foreground),
+                  const SizedBox(height: 4),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: foreground,
+                        ),
+                  ),
+                ],
+              ),
             ),
           );
         },
