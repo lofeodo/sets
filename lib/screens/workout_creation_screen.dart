@@ -273,19 +273,43 @@ class _WorkoutCreationScreenState extends ConsumerState<WorkoutCreationScreen> {
             if (_exercises.isEmpty)
               const Text('Add at least one exercise.')
             else
-              ..._exercises.asMap().entries.map((entry) {
-                final index = entry.key;
-                final name = entry.value;
-                return Card(
-                  child: ListTile(
-                    title: Text(name),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => setState(() => _exercises.removeAt(index)),
-                    ),
-                  ),
-                );
-              }),
+              ReorderableListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                buildDefaultDragHandles: false,
+                itemCount: _exercises.length,
+                onReorder: (oldIndex, newIndex)
+                {
+                  setState(()
+                  {
+                    if (newIndex > oldIndex) newIndex -= 1;
+                    final item = _exercises.removeAt(oldIndex);
+                    _exercises.insert(newIndex, item);
+                  });
+                },
+                itemBuilder: (context, index)
+                {
+                  final name = _exercises[index];
+
+                  return Card(
+                    key: ValueKey(name),
+                    child: ListTile(
+                      title: Text(name),
+
+                      // drag handle on the left
+                      leading: ReorderableDragStartListener(
+                        index: index,
+                        child: const Icon(Icons.drag_handle),
+                      ),
+
+                      trailing: IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => setState(() => _exercises.removeAt(index)),
+                      )
+                    )
+                  );
+                },
+              ),
           ],
         ),
       )
