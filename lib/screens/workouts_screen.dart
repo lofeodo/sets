@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:flutter_slidable/flutter_slidable.dart';
 import '../providers/workouts_provider.dart';
 import 'workout_creation_screen.dart';
-import 'workout_details_screen.dart';
+import 'record_workout_screen.dart';
 import '../widgets/workout_swipe_tile.dart';
 
 class WorkoutsScreen extends ConsumerWidget
@@ -40,7 +40,7 @@ class WorkoutsScreen extends ConsumerWidget
                 onOpenDetails: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => WorkoutDetailsScreen(workoutName: workout.name),
+                      builder: (_) => RecordWorkoutScreen(workoutName: workout.name),
                     ),
                   );
                 },
