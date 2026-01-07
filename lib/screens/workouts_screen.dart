@@ -2,10 +2,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// import 'package:flutter_slidable/flutter_slidable.dart';
 import '../providers/workouts_provider.dart';
 import 'workout_creation_screen.dart';
-import 'workout_details_screen.dart';
-import '../ui/confirm_destructive_sheet.dart';
+import 'record_workout_screen.dart';
+import '../widgets/workout_swipe_tile.dart';
 
 class WorkoutsScreen extends ConsumerWidget
 {
@@ -34,28 +35,12 @@ class WorkoutsScreen extends ConsumerWidget
             itemBuilder: (context, i)
             {
               final workout = workouts[i];
-              return ListTile(
-                title: Text(workout.name),
-                subtitle: Text('${workout.exercises.length} exercises'),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () async {
-                    final ok = await showDestructiveConfirmSheet(
-                      context,
-                      title: 'Delete workout?',
-                      message: 'This will remove “${workout.name}” and its configuration.',
-                      confirmText: 'Delete',
-                    );
-                    if (!ok) return;
-
-                    ref.read(workoutsProvider.notifier).deleteWorkout(workout.name);
-                  }
-                ),
-                onTap: () 
-                {
+              return WorkoutSwipeTile(
+                workout: workout,
+                onOpenDetails: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => WorkoutDetailsScreen(workoutName: workout.name),
+                      builder: (_) => RecordWorkoutScreen(workoutName: workout.name),
                     ),
                   );
                 },
