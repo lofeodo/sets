@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/workouts_provider.dart';
 import 'workout_creation_screen.dart';
 import 'workout_details_screen.dart';
-import '../ui/confirm_destructive_sheet.dart';
+import '../widgets/workout_swipe_tile.dart';
 
 class WorkoutsScreen extends ConsumerWidget
 {
@@ -35,79 +35,15 @@ class WorkoutsScreen extends ConsumerWidget
             itemBuilder: (context, i)
             {
               final workout = workouts[i];
-              return Dismissible(
-                key: ValueKey(workout.name),
-                direction: DismissDirection.endToStart, // swipe right→left
-                background: const SizedBox.shrink(),
-                dismissThresholds: const{
-                  DismissDirection.endToStart: 0.25,
-                },
-                secondaryBackground: Container(
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Container(
-                    width: 86,
-                    height: double.infinity,
-                    margin: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.secondaryContainer,
-                    ),
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.edit,
-                            color: Theme.of(context).colorScheme.onSecondaryContainer,
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Edit',
-                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                  color: Theme.of(context).colorScheme.onSecondaryContainer,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                confirmDismiss: (direction) async {
-                  // Swipe itself triggers edit
-                  await Navigator.of(context).push(
+              return WorkoutSwipeTile(
+                workout: workout,
+                onOpenDetails: () {
+                  Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => WorkoutCreationScreen(initialWorkout: workout),
+                      builder: (_) => WorkoutDetailsScreen(workoutName: workout.name),
                     ),
                   );
-
-                  // Return false = DO NOT dismiss; item snaps back to unswiped position
-                  return false;
                 },
-                child: ListTile(
-                  title: Text(workout.name),
-                  subtitle: Text('${workout.exercises.length} exercises'),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: () async {
-                      final ok = await showDestructiveConfirmSheet(
-                        context,
-                        title: 'Delete workout?',
-                        message: 'This will remove “${workout.name}” and its configuration.',
-                        confirmText: 'Delete',
-                      );
-                      if (!ok) return;
-
-                      ref.read(workoutsProvider.notifier).deleteWorkout(workout.name);
-                    },
-                  ),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => WorkoutDetailsScreen(workoutName: workout.name),
-                      ),
-                    );
-                  },
-                ),
               );
             },
           );
