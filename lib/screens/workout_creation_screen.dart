@@ -140,7 +140,9 @@ class _WorkoutCreationScreenState extends ConsumerState<WorkoutCreationScreen> {
             final alreadyAddedKeys = _exercises.map((e) => e.toLowerCase()).toSet();
 
             return AlertDialog(
-              title: const Text('Add exercise'),
+              title: Text(
+                'Add exercise',
+                style: Theme.of(context).textTheme.titleSmall),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
