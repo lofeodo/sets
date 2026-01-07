@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/workouts_provider.dart';
-import 'workout_form_screen.dart';
+import 'workout_creation_screen.dart';
 import 'workout_details_screen.dart';
 
 class WorkoutsScreen extends ConsumerWidget
@@ -59,7 +59,7 @@ class WorkoutsScreen extends ConsumerWidget
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const WorkoutFormScreen()),
+            MaterialPageRoute(builder: (_) => const WorkoutCreationScreen()),
           );
         },
         child: const Icon(Icons.add),

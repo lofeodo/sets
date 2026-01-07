@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/workouts_provider.dart';
 import '../model/workout.dart';
 
-class WorkoutFormScreen extends ConsumerStatefulWidget 
+class WorkoutCreationScreen extends ConsumerStatefulWidget 
 {
-  const WorkoutFormScreen({
+  const WorkoutCreationScreen({
     super.key,
     this.initialWorkout, // null = create, non-null = edit
   });
@@ -15,10 +15,10 @@ class WorkoutFormScreen extends ConsumerStatefulWidget
   bool get isEdit => initialWorkout != null;
 
   @override
-  ConsumerState<WorkoutFormScreen> createState() => _WorkoutFormScreenState();
+  ConsumerState<WorkoutCreationScreen> createState() => _WorkoutCreationScreenState();
 }
 
-class _WorkoutFormScreenState extends ConsumerState<WorkoutFormScreen> {
+class _WorkoutCreationScreenState extends ConsumerState<WorkoutCreationScreen> {
   late final TextEditingController _workoutNameController;
   late final List<String> _exercises;
   List<String> _exerciseSuggestions = const [];
