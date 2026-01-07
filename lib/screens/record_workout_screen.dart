@@ -307,7 +307,7 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text('Record • ${workout.name}'),
+          title: Text('${workout.name}'),
           leading: IconButton(
             icon: const Icon(Icons.close),
             tooltip: 'Close',
