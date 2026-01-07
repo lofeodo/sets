@@ -27,22 +27,36 @@ class WorkoutsScreen extends ConsumerWidget
           {
             return const Center(child: Text('No workouts yet.'));
           }
-
-          return ListView.separated(
+          return ReorderableListView.builder(
+            buildDefaultDragHandles: false,
             itemCount: workouts.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, i)
-            {
+            onReorder: (oldIndex, newIndex) {
+              if (newIndex > oldIndex) newIndex -= 1;
+
+              ref.read(workoutsProvider.notifier).reorderWorkouts(oldIndex, newIndex);
+            },
+            itemBuilder: (context, i) {
               final workout = workouts[i];
-              return WorkoutSwipeTile(
-                workout: workout,
-                onOpenDetails: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => RecordWorkoutScreen(workoutName: workout.name),
+
+              return Column(
+                key: ValueKey(workout.name),
+                children: [
+                  WorkoutSwipeTile(
+                    workout: workout,
+                    leading: ReorderableDragStartListener(
+                      index: i,
+                      child: const Icon(Icons.drag_handle),
                     ),
-                  );
-                },
+                    onOpenDetails: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => RecordWorkoutScreen(workoutName: workout.name),
+                        ),
+                      );
+                    },
+                  ),
+                  const Divider(height: 1),
+                ],
               );
             },
           );

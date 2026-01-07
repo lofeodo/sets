@@ -69,6 +69,23 @@ class WorkoutsController extends StateNotifier<AsyncValue<List<Workout>>>
     return null;
   }
 
+  Future<void> reorderWorkouts(int oldIndex, int newIndex) async 
+  {
+    final current = state.value;
+    if (current == null) return;
+
+    final list = [...current];
+
+    final item = list.removeAt(oldIndex);
+    list.insert(newIndex, item);
+
+    // update UI immediately
+    state = AsyncValue.data(list);
+
+    // persist order
+    await _db.saveWorkouts(list);
+  }
+
   Future<void> deleteWorkout(String name) async
   {
     final current = state.value ?? const [];
