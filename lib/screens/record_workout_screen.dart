@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/workouts_provider.dart';
-import '../model/session_log.dart';
 import '../model/set_log.dart';
 import '../model/exercise_day_log.dart';
+import '../ui/confirm_destructive_sheet.dart';
 
 class RecordWorkoutScreen extends ConsumerStatefulWidget {
   const RecordWorkoutScreen({
@@ -25,13 +25,61 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
   final Map<String, double?> _defaults = {};
   final Map<String, Map<String, List<SetDraft>>> _draftsByDate = {};
   final Map<String, int> _exerciseIndexByDate = {};
+  final Map<String, String> _baseline = {};
+  final Set<String> _dirtyKeys = {};
   late DateTime _activeDate;
   late final DateTime _today;
 
   bool _initialized = false;
 
+  bool get _isDirty => _dirtyKeys.isNotEmpty;
+
+  String _k(String date, String exercise, int setIndex, String field) =>
+    '$date|$exercise|$setIndex|$field';
+
+  void _updateDirty(String key, String currentValue)
+  {
+    final base = _baseline[key] ?? '';
+    if (currentValue == base)
+    {
+      _dirtyKeys.remove(key);
+    }
+    else
+    {
+      _dirtyKeys.add(key);
+    }
+  }
+
+  void _captureBaselineFromCurrentControllers()
+  {
+    _baseline.clear();
+    _dirtyKeys.clear();
+
+    for (final dateEntry in _draftsByDate.entries)
+    {
+      final date = dateEntry.key;
+      final perExercise = dateEntry.value;
+
+      for (final exEntry in perExercise.entries)
+      {
+        final exercise = exEntry.key;
+        final sets = exEntry.value;
+
+        for (int i = 0; i < sets.length; i++)
+        {
+          final d = sets[i];
+
+          _baseline[_k(date, exercise, i, 'w')]  = d.weightController.text.trim();
+          _baseline[_k(date, exercise, i, 'fr')] = d.fullRepsController.text.trim();
+          _baseline[_k(date, exercise, i, 'pr')] = d.partialRepsController.text.trim();        
+        }
+      }
+    }
+  }
+
   @override
-  void initState() {
+  void initState() 
+  {
     super.initState();
     final now = DateTime.now();
     _today = DateTime(now.year, now.month, now.day);
@@ -216,192 +264,231 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
     final currentExercise = exercises[_exerciseIndex];
     final currentSets = _drafts.putIfAbsent(currentExercise, () => <SetDraft>[]);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Record • ${workout.name}'),
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          tooltip: 'Close',
-          onPressed: () {
-            _clearAllCachedDrafts();
-            Navigator.of(context).pop();
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => _saveAll(workout.name),
-            child: const Text('Save'),
+    return PopScope(
+      canPop: !_isDirty,
+      onPopInvoked: (didPop) async
+      {
+        if (didPop) return;
+
+        final ok = await showDestructiveConfirmSheet(
+          context, 
+          title: 'Discard unfinished changes?', 
+          message: 'Your unsaved recording will be cleared.', 
+          confirmText: 'Discard',
+        );
+
+        if (!ok) return;
+
+        _clearAllCachedDrafts();
+        if (context.mounted) Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('Record • ${workout.name}'),
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            tooltip: 'Close',
+            onPressed: () async 
+            {
+              if (_isDirty)
+              {
+                final ok = await showDestructiveConfirmSheet(
+                  context, 
+                  title: 'Discard unfinished changes?', 
+                  message: 'Your unsaved recording will be cleared.', 
+                  confirmText: 'Discard',
+                );
+                if (!ok) return;
+              }
+
+              _clearAllCachedDrafts();
+              if (context.mounted) Navigator.of(context).pop();
+            },
           ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left),
-                onPressed: () => _goPrev(workout.name, exercises),
-                tooltip: 'Previous day',
-              ),
-              Expanded(
-                child: Center(
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () => _pickDate(workout.name, exercises),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                      child: Text(
-                        _dateIso(_activeDate),
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          actions: [
+            TextButton(
+              onPressed: () => _saveAll(workout.name),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.chevron_left),
+                  onPressed: () => _goPrev(workout.name, exercises),
+                  tooltip: 'Previous day',
+                ),
+                Expanded(
+                  child: Center(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () => _pickDate(workout.name, exercises),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                        child: Text(
+                          _dateIso(_activeDate),
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.chevron_right),
-                onPressed: _canGoNext ? () => _goNext(workout.name, exercises) : null,
-                tooltip: 'Next day',
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Exercise pager header
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left),
-                onPressed: _exerciseIndex > 0
-                    ? () => setState(() => _exerciseIndex--)
-                    : null,
-              ),
-              Expanded(
-                child: Column(
-                  children: [
-                    Text(
-                      currentExercise,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${_exerciseIndex + 1} / ${exercises.length}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
+                IconButton(
+                  icon: const Icon(Icons.chevron_right),
+                  onPressed: _canGoNext ? () => _goNext(workout.name, exercises) : null,
+                  tooltip: 'Next day',
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.chevron_right),
-                onPressed: _exerciseIndex < exercises.length - 1
-                    ? () => setState(() => _exerciseIndex++)
-                    : null,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Add set row
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Sets',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Exercise pager header
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.chevron_left),
+                  onPressed: _exerciseIndex > 0
+                      ? () => setState(() => _exerciseIndex--)
+                      : null,
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.add),
-                tooltip: 'Add set',
-                onPressed: () {
-                  setState(() {
-                    currentSets.add(
-                      SetDraft.withDefaultWeight(_defaults[currentExercise]),
-                    );
-                  });
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          if (currentSets.isEmpty)
-            const Text('No sets yet. Tap + to add one.')
-          else
-            ...currentSets.asMap().entries.map((entry) {
-              final setIndex = entry.key;
-              final set = entry.value;
-
-              return Card(
-                margin: const EdgeInsets.symmetric(vertical: 6),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
+                Expanded(
                   child: Column(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: SwitchListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: const Text('Bodyweight'),
-                              value: set.isBodyweight,
-                              onChanged: (v) {
-                                setState(() {
-                                  set.isBodyweight = v;
-                                  if (v) {
-                                    set.weightController.text = '';
-                                  } else {
-                                    // Restore default if empty
-                                    if (set.weightController.text.trim().isEmpty) {
-                                      final d = _defaults[currentExercise];
-                                      if (d != null) {
-                                        set.weightController.text = d.toString();
-                                      }
-                                    }
-                                  }
-                                });
-                              },
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close),
-                            tooltip: 'Remove set',
-                            onPressed: () {
-                              setState(() => currentSets.removeAt(setIndex));
-                            },
-                          ),
-                        ],
+                      Text(
+                        currentExercise,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                        textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: set.weightController,
-                        enabled: !set.isBodyweight,
-                        keyboardType:
-                            const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(labelText: 'Weight'),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: set.fullRepsController,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                        decoration: const InputDecoration(labelText: 'Full reps', hintText: '0'),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: set.partialRepsController,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                        decoration: const InputDecoration(labelText: 'Partial reps', hintText: '0'),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${_exerciseIndex + 1} / ${exercises.length}',
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
                   ),
                 ),
-              );
-            }),
-        ],
-      ),
+                IconButton(
+                  icon: const Icon(Icons.chevron_right),
+                  onPressed: _exerciseIndex < exercises.length - 1
+                      ? () => setState(() => _exerciseIndex++)
+                      : null,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Add set row
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Sets',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  tooltip: 'Add set',
+                  onPressed: () {
+                    setState(() {
+                      currentSets.add(
+                        SetDraft.withDefaultWeight(_defaults[currentExercise]),
+                      );
+                    });
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            if (currentSets.isEmpty)
+              const Text('No sets yet. Tap + to add one.')
+            else
+              ...currentSets.asMap().entries.map((entry) {
+                final setIndex = entry.key;
+                final set = entry.value;
+
+                final dateIso = _dateIso(_activeDate);
+                final keyW  = _k(dateIso, currentExercise, setIndex, 'w');
+                final keyFR = _k(dateIso, currentExercise, setIndex, 'fr');
+                final keyPR = _k(dateIso, currentExercise, setIndex, 'pr');
+
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 6),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: SwitchListTile(
+                                contentPadding: EdgeInsets.zero,
+                                title: const Text('Bodyweight'),
+                                value: set.isBodyweight,
+                                onChanged: (v) {
+                                  setState(() {
+                                    set.isBodyweight = v;
+                                    if (v) {
+                                      set.weightController.text = '';
+                                    } else {
+                                      // Restore default if empty
+                                      if (set.weightController.text.trim().isEmpty) {
+                                        final d = _defaults[currentExercise];
+                                        if (d != null) {
+                                          set.weightController.text = d.toString();
+                                        }
+                                      }
+                                    }
+                                  });
+                                },
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close),
+                              tooltip: 'Remove set',
+                              onPressed: () {
+                                setState(() => currentSets.removeAt(setIndex));
+                              },
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: set.weightController,
+                          onChanged: (v) => setState(() => _updateDirty(keyW, v.trim())),
+                          enabled: !set.isBodyweight,
+                          keyboardType:
+                              const TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(labelText: 'Weight'),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: set.fullRepsController,
+                          onChanged: (v) => setState(() => _updateDirty(keyFR, v.trim())),
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          decoration: const InputDecoration(labelText: 'Full reps', hintText: '0'),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: set.partialRepsController,
+                          onChanged: (v) => setState(() => _updateDirty(keyPR, v.trim())),
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          decoration: const InputDecoration(labelText: 'Partial reps', hintText: '0'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+          ],
+        ),
+      )
     );
   }
 
@@ -474,6 +561,8 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
         }
       }
     }
+
+    _captureBaselineFromCurrentControllers();
 
     if (!mounted) return;
     Navigator.of(context).pop();
