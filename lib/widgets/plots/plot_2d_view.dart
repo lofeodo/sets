@@ -81,11 +81,11 @@ class _Plot2DViewState extends State<Plot2DView> {
 
     // Tick intervals
     final bottomInterval = xIsDate
-        ? _dateTickInterval(spots.length) // linear index ticks
+        ? dateTickInterval(spots.length) // linear index ticks
         : niceInterval(minX, maxX, targetTicks: 4);
 
     final leftInterval = niceInterval(minY, maxY, targetTicks: 4);
-    final yLabels = _yTickLabels(minY, maxY, leftInterval, _fmtNum);
+    final yLabels = _yTickLabels(minY, maxY, leftInterval, formatNum1);
     final leftReserved = _measureMaxLabelWidth(
       context,
       yLabels,
@@ -129,9 +129,9 @@ class _Plot2DViewState extends State<Plot2DView> {
                     if (idx < 0 || idx >= dateByIndex.length) {
                       return const SizedBox.shrink();
                     }
-                    text = _fmtDate(dateByIndex[idx]);
+                    text = formatMonthDay(dateByIndex[idx]);
                   } else {
-                    text = _fmtNum(value);
+                    text = formatNum1(value);
                   }
 
                   return SideTitleWidget(
@@ -150,7 +150,7 @@ class _Plot2DViewState extends State<Plot2DView> {
                 getTitlesWidget: (value, meta) {
                   return SideTitleWidget(
                     axisSide: meta.axisSide,
-                    child: Text(_fmtNum(value), style: const TextStyle(fontSize: 11)),
+                    child: Text(formatNum1(value), style: const TextStyle(fontSize: 11)),
                   );
                 },
               ),
@@ -164,9 +164,9 @@ class _Plot2DViewState extends State<Plot2DView> {
               getTooltipItems: (touchedSpots) {
                 return touchedSpots.map((ts) {
                   final xLabel = xIsDate
-                      ? _fmtDate(dateByIndex[ts.x.round().clamp(0, dateByIndex.length - 1)])
-                      : _fmtNum(ts.x);
-                  final yLabel = _fmtNum(ts.y);
+                      ? formatMonthDay(dateByIndex[ts.x.round().clamp(0, dateByIndex.length - 1)])
+                      : formatNum1(ts.x);
+                  final yLabel = formatNum1(ts.y);
 
                   return LineTooltipItem(
                     '$xLabel\n$yLabel',
@@ -190,25 +190,6 @@ class _Plot2DViewState extends State<Plot2DView> {
       ),
     );
   }
-}
-
-/// For date-as-index x-axis: pick an interval that yields ~6 labels max.
-double _dateTickInterval(int n) {
-  if (n <= 1) return 1;
-  if (n <= 6) return 1;
-  if (n <= 12) return 2;
-  if (n <= 20) return 3;
-  return (n / 6).ceilToDouble();
-}
-
-String _fmtNum(double v) => v.toStringAsFixed(1);
-
-String _fmtDate(DateTime dt) {
-  const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-  ];
-  return '${months[dt.month - 1]} ${dt.day}';
 }
 
 double _measureMaxLabelWidth(

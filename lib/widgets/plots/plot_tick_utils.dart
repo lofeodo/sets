@@ -57,3 +57,31 @@ double _pow10(int exp) {
   for (int i = 0; i < exp; i++) v *= 10;
   return v;
 }
+
+/// For date-as-index axes: pick an interval that yields ~6 labels max.
+double dateTickInterval(int n) {
+  if (n <= 1) return 1;
+  if (n <= 6) return 1;
+  if (n <= 12) return 2;
+  if (n <= 20) return 3;
+  return (n / 6).ceilToDouble();
+}
+
+/// Format a DateTime like Plot2D: "Aug 9"
+String formatMonthDay(DateTime dt) {
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  return '${months[dt.month - 1]} ${dt.day}';
+}
+
+/// Format milliseconds since epoch into "Aug 9"
+/// (Useful for plot data where dates are stored as epoch ms doubles)
+String formatEpochMsMonthDay(double epochMs) {
+  final dt = DateTime.fromMillisecondsSinceEpoch(epochMs.round());
+  return formatMonthDay(dt);
+}
+
+/// Match Plot2D number format: 1 decimal place
+String formatNum1(double v) => v.toStringAsFixed(1);
