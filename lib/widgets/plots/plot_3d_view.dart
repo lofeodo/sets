@@ -30,6 +30,7 @@ class Plot3DView extends StatefulWidget {
 class _Plot3DViewState extends State<Plot3DView> {
   double _yaw = -0.9;
   double _pitch = 0.55;
+  static const double _axisLen = 1.5; // must match painter camDist-ish (see below)
 
   List<_Vec3> _pts = const [];
 
@@ -74,7 +75,11 @@ class _Plot3DViewState extends State<Plot3DView> {
 
     _pts = List<_Vec3>.generate(
       raw.length,
-      (i) => _Vec3(xs[i], ys[i], zs[i]),
+      (i) => _Vec3(
+        xs[i] * _axisLen,
+        ys[i] * _axisLen,
+        zs[i] * _axisLen,
+      ),
       growable: false,
     );
   }
@@ -104,11 +109,12 @@ class _Plot3DViewState extends State<Plot3DView> {
         // IMPORTANT: force the painter to fill the available square
         child: SizedBox.expand(
           child: CustomPaint(
-            painter: _Scatter3DPainter(
-              points: _pts,
-              yaw: _yaw,
-              pitch: _pitch,
-            ),
+          painter: _Scatter3DPainter(
+            points: _pts,
+            yaw: _yaw,
+            pitch: _pitch,
+            axisLen: _axisLen,
+          ),
           ),
         ),
       ),
@@ -120,11 +126,13 @@ class _Scatter3DPainter extends CustomPainter {
   final List<_Vec3> points;
   final double yaw;
   final double pitch;
+  final double axisLen;
 
   const _Scatter3DPainter({
     required this.points,
     required this.yaw,
     required this.pitch,
+    required this.axisLen,
   });
 
   @override
@@ -144,13 +152,17 @@ class _Scatter3DPainter extends CustomPainter {
         ..strokeWidth = 1,
     );
 
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+
     final cx = size.width * 0.5;
     final cy = size.height * 0.5;
     final half = math.min(size.width, size.height) * 0.5;
 
-    // Keep it comfortably inside your square container.
-    final scale = half * 0.78;
-    const camDist = 3.2;
+    // Fill (almost) the whole square.
+    const pad = 4.0;                 // pixels of margin
+    final scale = half - pad;        // use almost the full half-size
+    const camDist = 2.6;             // perspective strength
 
     final cyaw = math.cos(yaw);
     final syaw = math.sin(yaw);
@@ -193,9 +205,9 @@ class _Scatter3DPainter extends CustomPainter {
     }
 
     // Axes (through origin)
-    line3(const _Vec3(-1.2, 0, 0), const _Vec3(1.2, 0, 0), axisPaint); // X
-    line3(const _Vec3(0, -1.2, 0), const _Vec3(0, 1.2, 0), axisPaint); // Y
-    line3(const _Vec3(0, 0, -1.2), const _Vec3(0, 0, 1.2), axisPaint); // Z
+    line3(_Vec3(-axisLen, 0, 0), _Vec3(axisLen, 0, 0), axisPaint); // X
+    line3(_Vec3(0, -axisLen, 0), _Vec3(0, axisLen, 0), axisPaint); // Y
+    line3(_Vec3(0, 0, -axisLen), _Vec3(0, 0, axisLen), axisPaint); // Z
 
     // Depth-sort points back-to-front
     final rotated = points.map(rot).toList(growable: false);
@@ -216,6 +228,7 @@ class _Scatter3DPainter extends CustomPainter {
 
       canvas.drawCircle(proj(v), radius, paint);
     }
+    canvas.restore();
   }
 
   @override
