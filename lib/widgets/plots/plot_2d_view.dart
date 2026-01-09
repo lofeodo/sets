@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'plot_axis.dart';
 import 'plot_spec.dart';
 import 'plot_data.dart';
+import 'plot_tick_utils.dart';
 
 class Plot2DView extends StatefulWidget {
   final PlotSpec spec;
@@ -81,9 +82,9 @@ class _Plot2DViewState extends State<Plot2DView> {
     // Tick intervals
     final bottomInterval = xIsDate
         ? _dateTickInterval(spots.length) // linear index ticks
-        : _niceInterval(minX, maxX, targetTicks: 4);
+        : niceInterval(minX, maxX, targetTicks: 4);
 
-    final leftInterval = _niceInterval(minY, maxY, targetTicks: 4);
+    final leftInterval = niceInterval(minY, maxY, targetTicks: 4);
     final yLabels = _yTickLabels(minY, maxY, leftInterval, _fmtNum);
     final leftReserved = _measureMaxLabelWidth(
       context,
@@ -198,41 +199,6 @@ double _dateTickInterval(int n) {
   if (n <= 12) return 2;
   if (n <= 20) return 3;
   return (n / 6).ceilToDouble();
-}
-
-/// General-purpose interval for numeric axes.
-double _niceInterval(double min, double max, {required int targetTicks}) {
-  final range = (max - min).abs();
-  if (range == 0) return 1;
-
-  final raw = range / targetTicks;
-  final mag = _pow10((raw.log10()).floor());
-
-  final candidates = [1 * mag, 2 * mag, 5 * mag, 10 * mag];
-
-  double best = candidates.first;
-  double bestDiff = double.infinity;
-
-  for (final c in candidates) {
-    final ticks = range / c;
-    final diff = (ticks - targetTicks).abs();
-    if (diff < bestDiff) {
-      bestDiff = diff;
-      best = c;
-    }
-  }
-
-  return best;
-}
-
-double _pow10(int exp) {
-  double v = 1;
-  for (int i = 0; i < exp; i++) v *= 10;
-  return v;
-}
-
-extension on double {
-  double log10() => (this <= 0) ? 0 : (log(this) / ln10);
 }
 
 String _fmtNum(double v) => v.toStringAsFixed(1);
