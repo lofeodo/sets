@@ -5,6 +5,7 @@ import '../../theme/app_colors.dart';
 import 'plot_axis.dart';
 import 'plot_data.dart';
 import 'plot_spec.dart';
+import 'plot_tick_utils.dart';
 
 class Plot3DView extends StatefulWidget {
   final PlotSpec spec;
@@ -30,6 +31,10 @@ class _Plot3DViewState extends State<Plot3DView> {
 
   // Cached points in plot-space [0, axisLen]
   List<_Vec3> _pts = const [];
+
+  double _xMin = 0, _xMax = 1;
+  double _yMin = 0, _yMax = 1;
+  double _zMin = 0, _zMax = 1;
 
   @override
   void initState() {
@@ -74,6 +79,20 @@ class _Plot3DViewState extends State<Plot3DView> {
     final yMapped = _maybeMapDateToIndex(widget.spec.yAxis, yVals);
     final zMapped = _maybeMapDateToIndex(widget.spec.zAxis!, zVals);
 
+    _xMin = xMapped.reduce(math.min);
+    _xMax = xMapped.reduce(math.max);
+
+    _yMin = yMapped.reduce(math.min);
+    _yMax = yMapped.reduce(math.max);
+
+    _zMin = zMapped.reduce(math.min);
+    _zMax = zMapped.reduce(math.max);
+
+    // Avoid division-by-zero in tick placement if range collapses
+    if (_xMin == _xMax) { _xMin -= 1; _xMax += 1; }
+    if (_yMin == _yMax) { _yMin -= 1; _yMax += 1; }
+    if (_zMin == _zMax) { _zMin -= 1; _zMax += 1; }
+
     // Normalize into [0,1] so there are no “negative” plot values
     final xs = _normalize01(xMapped);
     final ys = _normalize01(yMapped);
@@ -106,7 +125,6 @@ class _Plot3DViewState extends State<Plot3DView> {
       onPanUpdate: _handleDrag,
       child: RepaintBoundary(
         child: SizedBox.expand(
-
           child: CustomPaint(
             painter: _Scatter3DPainter(
               points: _pts,
@@ -117,6 +135,12 @@ class _Plot3DViewState extends State<Plot3DView> {
               yLabel: widget.spec.yAxis.label,
               zLabel: widget.spec.zAxis!.label,
               labelStyle: textStyle,
+              xMin: _xMin,
+              xMax: _xMax,
+              yMin: _yMin,
+              yMax: _yMax,
+              zMin: _zMin,
+              zMax: _zMax,
             ),
           ),
         ),
@@ -130,6 +154,9 @@ class _Scatter3DPainter extends CustomPainter {
   final double yaw;
   final double pitch;
   final double axisLen;
+  final double xMin, xMax;
+  final double yMin, yMax;
+  final double zMin, zMax;
 
   final String xLabel;
   final String yLabel;
@@ -145,6 +172,12 @@ class _Scatter3DPainter extends CustomPainter {
     required this.yLabel,
     required this.zLabel,
     required this.labelStyle,
+    required this.xMin,
+    required this.xMax,
+    required this.yMin,
+    required this.yMax,
+    required this.zMin,
+    required this.zMax,
   });
 
   @override
@@ -293,6 +326,82 @@ class _Scatter3DPainter extends CustomPainter {
       Alignment.bottomLeft,
     );
 
+    // ── Ticks ─────────────────────────────────────────────────────────────
+
+    final tickPaint = Paint()
+      ..color = AppColors.textSecondary.withOpacity(0.6)
+      ..strokeWidth = 1
+      ..isAntiAlias = true;
+
+    // Tick size in world space (small)
+    final tickSize = axisLen * 0.04;
+
+    // Helper: place a tick line + label for a point on an axis
+    void drawTick({
+      required _Vec3 axisPoint, // point ON the axis in plot-space
+      required _Vec3 tickDir,   // direction for tick mark (small)
+      required String label,
+    }) {
+      final a = toScreen(rot(centerShift(axisPoint)));
+      final b = toScreen(rot(centerShift(_Vec3(
+        axisPoint.x + tickDir.x,
+        axisPoint.y + tickDir.y,
+        axisPoint.z + tickDir.z,
+      ))));
+
+      canvas.drawLine(a, b, tickPaint);
+
+      final tp = TextPainter(
+        text: TextSpan(text: label, style: labelStyle),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      )..layout();
+
+      // Offset label slightly away from the tick end
+      tp.paint(canvas, b + const Offset(4, 0) - Offset(0, tp.height / 2));
+    }
+
+    // Build nice ticks in DATA SPACE (real values)
+    final xTicks = buildTicks(xMin, xMax, targetTicks: 4);
+    final yTicks = buildTicks(yMin, yMax, targetTicks: 4);
+    final zTicks = buildTicks(zMin, zMax, targetTicks: 4);
+
+    // X axis ticks: along +X from origin
+    for (final v in xTicks) {
+      if (v <= xMin + 1e-9) continue; // skip origin tick to avoid clutter
+      final t = (v - xMin) / (xMax - xMin); // 0..1
+      final p = _Vec3(axisLen * t, 0, 0);
+      drawTick(
+        axisPoint: p,
+        tickDir: _Vec3(0, -tickSize, 0),
+        label: formatTick(v),
+      );
+    }
+
+    // Y axis ticks: along +Y
+    for (final v in yTicks) {
+      if (v <= yMin + 1e-9) continue;
+      final t = (v - yMin) / (yMax - yMin);
+      final p = _Vec3(0, axisLen * t, 0);
+      drawTick(
+        axisPoint: p,
+        tickDir: _Vec3(-tickSize, 0, 0),
+        label: formatTick(v),
+      );
+    }
+
+    // Z axis ticks: along +Z
+    for (final v in zTicks) {
+      if (v <= zMin + 1e-9) continue;
+      final t = (v - zMin) / (zMax - zMin);
+      final p = _Vec3(0, 0, axisLen * t);
+      drawTick(
+        axisPoint: p,
+        tickDir: _Vec3(tickSize, 0, 0),
+        label: formatTick(v),
+      );
+    }
+
     // Points (depth-sort back-to-front)
     final rotatedPoints = points.map((p) => rot(centerShift(p))).toList(growable: false);
     final indices = List<int>.generate(rotatedPoints.length, (i) => i)
@@ -327,7 +436,13 @@ class _Scatter3DPainter extends CustomPainter {
         oldDelegate.xLabel != xLabel ||
         oldDelegate.yLabel != yLabel ||
         oldDelegate.zLabel != zLabel ||
-        oldDelegate.labelStyle != labelStyle;
+        oldDelegate.labelStyle != labelStyle ||
+        oldDelegate.xMin != xMin ||
+        oldDelegate.xMax != xMax ||
+        oldDelegate.yMin != yMin ||
+        oldDelegate.yMax != yMax ||
+        oldDelegate.zMin != zMin ||
+        oldDelegate.zMax != zMax;
   }
 
   void _drawLabel(
