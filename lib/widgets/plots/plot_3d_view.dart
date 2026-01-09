@@ -101,16 +101,22 @@ class _Plot3DViewState extends State<Plot3DView> {
       );
     }
 
+    final textStyle = Theme.of(context).textTheme.labelMedium!;
     return GestureDetector(
       onPanUpdate: _handleDrag,
       child: RepaintBoundary(
         child: SizedBox.expand(
+
           child: CustomPaint(
             painter: _Scatter3DPainter(
               points: _pts,
               yaw: _yaw,
               pitch: _pitch,
               axisLen: _axisLen,
+              xLabel: widget.spec.xAxis.label,
+              yLabel: widget.spec.yAxis.label,
+              zLabel: widget.spec.zAxis!.label,
+              labelStyle: textStyle,
             ),
           ),
         ),
@@ -125,11 +131,20 @@ class _Scatter3DPainter extends CustomPainter {
   final double pitch;
   final double axisLen;
 
+  final String xLabel;
+  final String yLabel;
+  final String zLabel;
+  final TextStyle labelStyle;
+
   const _Scatter3DPainter({
     required this.points,
     required this.yaw,
     required this.pitch,
     required this.axisLen,
+    required this.xLabel,
+    required this.yLabel,
+    required this.zLabel,
+    required this.labelStyle,
   });
 
   @override
@@ -250,6 +265,34 @@ class _Scatter3DPainter extends CustomPainter {
     line3(o, _Vec3(0, axisLen, 0), axisPaint); // Y
     line3(o, _Vec3(0, 0, axisLen), axisPaint); // Z
 
+    // Axis labels (slightly offset outward)
+    const labelPad = 10.0;
+
+    final xEnd = toScreen(rot(centerShift(_Vec3(axisLen, 0, 0))));
+    final yEnd = toScreen(rot(centerShift(_Vec3(0, axisLen, 0))));
+    final zEnd = toScreen(rot(centerShift(_Vec3(0, 0, axisLen))));
+
+    _drawLabel(
+      canvas,
+      xLabel,
+      xEnd + const Offset(labelPad, 0),
+      Alignment.centerLeft,
+    );
+
+    _drawLabel(
+      canvas,
+      yLabel,
+      yEnd + const Offset(0, -labelPad),
+      Alignment.bottomCenter,
+    );
+
+    _drawLabel(
+      canvas,
+      zLabel,
+      zEnd + const Offset(labelPad, -labelPad),
+      Alignment.bottomLeft,
+    );
+
     // Points (depth-sort back-to-front)
     final rotatedPoints = points.map((p) => rot(centerShift(p))).toList(growable: false);
     final indices = List<int>.generate(rotatedPoints.length, (i) => i)
@@ -280,7 +323,32 @@ class _Scatter3DPainter extends CustomPainter {
     return oldDelegate.yaw != yaw ||
         oldDelegate.pitch != pitch ||
         oldDelegate.axisLen != axisLen ||
-        oldDelegate.points != points;
+        oldDelegate.points != points ||
+        oldDelegate.xLabel != xLabel ||
+        oldDelegate.yLabel != yLabel ||
+        oldDelegate.zLabel != zLabel ||
+        oldDelegate.labelStyle != labelStyle;
+  }
+
+  void _drawLabel(
+    Canvas canvas,
+    String text,
+    Offset position,
+    Alignment align,
+  ) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: labelStyle),
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final offset = position -
+        Offset(
+          painter.width * (align.x + 1) / 2,
+          painter.height * (align.y + 1) / 2,
+        );
+
+    painter.paint(canvas, offset);
   }
 }
 
