@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
@@ -7,12 +6,6 @@ import 'plot_axis.dart';
 import 'plot_data.dart';
 import 'plot_spec.dart';
 
-/// Pure Flutter “fake 3D” scatter plot.
-///
-/// - No native plugins
-/// - Drag to rotate (yaw + pitch)
-/// - No zoom / pan
-/// - Minimal dark theme using AppColors
 class Plot3DView extends StatefulWidget {
   final PlotSpec spec;
   final PlotData data;
@@ -28,10 +21,14 @@ class Plot3DView extends StatefulWidget {
 }
 
 class _Plot3DViewState extends State<Plot3DView> {
+  // Drag to rotate
   double _yaw = -0.9;
   double _pitch = 0.55;
-  static const double _axisLen = 1.5; // must match painter camDist-ish (see below)
 
+  // World cube side length (plot space will be [0, axisLen] on each axis)
+  static const double _axisLen = 1.0;
+
+  // Cached points in plot-space [0, axisLen]
   List<_Vec3> _pts = const [];
 
   @override
@@ -53,6 +50,14 @@ class _Plot3DViewState extends State<Plot3DView> {
     }
   }
 
+  void _handleDrag(DragUpdateDetails d) {
+    setState(() {
+      _yaw += d.delta.dx * 0.01;
+      _pitch += d.delta.dy * 0.01;
+      _pitch = _pitch.clamp(-1.2, 1.2);
+    });
+  }
+
   void _rebuildCache() {
     final raw = widget.data.points3D ?? const <PlotPoint3D>[];
     if (raw.isEmpty) {
@@ -64,14 +69,15 @@ class _Plot3DViewState extends State<Plot3DView> {
     final yVals = raw.map((p) => p.y).toList();
     final zVals = raw.map((p) => p.z).toList();
 
-    // Date axes should be mapped to linear indices before rendering.
+    // Date axes should be mapped to linear indices BEFORE rendering.
     final xMapped = _maybeMapDateToIndex(widget.spec.xAxis, xVals);
     final yMapped = _maybeMapDateToIndex(widget.spec.yAxis, yVals);
     final zMapped = _maybeMapDateToIndex(widget.spec.zAxis!, zVals);
 
-    final xs = _normalizeToUnit(xMapped);
-    final ys = _normalizeToUnit(yMapped);
-    final zs = _normalizeToUnit(zMapped);
+    // Normalize into [0,1] so there are no “negative” plot values
+    final xs = _normalize01(xMapped);
+    final ys = _normalize01(yMapped);
+    final zs = _normalize01(zMapped);
 
     _pts = List<_Vec3>.generate(
       raw.length,
@@ -82,14 +88,6 @@ class _Plot3DViewState extends State<Plot3DView> {
       ),
       growable: false,
     );
-  }
-
-  void _handleDrag(DragUpdateDetails d) {
-    setState(() {
-      _yaw += d.delta.dx * 0.01;
-      _pitch += d.delta.dy * 0.01;
-      _pitch = _pitch.clamp(-1.2, 1.2);
-    });
   }
 
   @override
@@ -106,15 +104,14 @@ class _Plot3DViewState extends State<Plot3DView> {
     return GestureDetector(
       onPanUpdate: _handleDrag,
       child: RepaintBoundary(
-        // IMPORTANT: force the painter to fill the available square
         child: SizedBox.expand(
           child: CustomPaint(
-          painter: _Scatter3DPainter(
-            points: _pts,
-            yaw: _yaw,
-            pitch: _pitch,
-            axisLen: _axisLen,
-          ),
+            painter: _Scatter3DPainter(
+              points: _pts,
+              yaw: _yaw,
+              pitch: _pitch,
+              axisLen: _axisLen,
+            ),
           ),
         ),
       ),
@@ -143,11 +140,11 @@ class _Scatter3DPainter extends CustomPainter {
       Paint()..color = AppColors.surface,
     );
 
-    // Border outline (subtle)
+    // Optional subtle border (NOT cube outline)
     canvas.drawRect(
       Offset.zero & size,
       Paint()
-        ..color = AppColors.textSecondary.withOpacity(0.35)
+        ..color = AppColors.textSecondary.withOpacity(0.25)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1,
     );
@@ -155,27 +152,30 @@ class _Scatter3DPainter extends CustomPainter {
     canvas.save();
     canvas.clipRect(Offset.zero & size);
 
+    const pad = 6.0;
+
     final cx = size.width * 0.5;
     final cy = size.height * 0.5;
-    final half = math.min(size.width, size.height) * 0.5;
 
-    // Fill (almost) the whole square.
-    const pad = 4.0;                 // pixels of margin
-    final scale = half - pad;        // use almost the full half-size
-    const camDist = 2.6;             // perspective strength
+    // Camera distance for perspective
+    const camDist = 3.2;
 
     final cyaw = math.cos(yaw);
     final syaw = math.sin(yaw);
     final cp = math.cos(pitch);
     final sp = math.sin(pitch);
 
+    // Center the cube for rotation, but keep axes defined in [0..axisLen]
+    final half = axisLen * 0.5;
+    _Vec3 centerShift(_Vec3 v) => _Vec3(v.x - half, v.y - half, v.z - half);
+
     _Vec3 rot(_Vec3 v) {
-      // yaw (Y axis)
+      // yaw around Y
       final x1 = v.x * cyaw + v.z * syaw;
       final y1 = v.y;
       final z1 = -v.x * syaw + v.z * cyaw;
 
-      // pitch (X axis)
+      // pitch around X
       final x2 = x1;
       final y2 = y1 * cp - z1 * sp;
       final z2 = y1 * sp + z1 * cp;
@@ -183,51 +183,95 @@ class _Scatter3DPainter extends CustomPainter {
       return _Vec3(x2, y2, z2);
     }
 
-    Offset proj(_Vec3 v) {
+    // Project to an unscaled 2D plane (we compute scale to fill screen)
+    _Proj2 projRaw(_Vec3 v) {
       final denom = (camDist - v.z).clamp(0.35, 1000.0);
       final p = 1.0 / denom;
-      return Offset(
-        cx + v.x * scale * p,
-        cy - v.y * scale * p,
-      );
+      return _Proj2(v.x * p, v.y * p, v.z);
     }
 
-    // Axes paint
+    // Compute bounds of the rotated cube so we can scale to fill available space.
+    final cubeCorners = <_Vec3>[
+      _Vec3(0, 0, 0),
+      _Vec3(axisLen, 0, 0),
+      _Vec3(axisLen, axisLen, 0),
+      _Vec3(0, axisLen, 0),
+      _Vec3(0, 0, axisLen),
+      _Vec3(axisLen, 0, axisLen),
+      _Vec3(axisLen, axisLen, axisLen),
+      _Vec3(0, axisLen, axisLen),
+    ].map((v) => rot(centerShift(v))).toList(growable: false);
+
+    double minX = double.infinity, maxX = -double.infinity;
+    double minY = double.infinity, maxY = -double.infinity;
+
+    for (final c in cubeCorners) {
+      final pr = projRaw(c);
+      if (pr.x < minX) minX = pr.x;
+      if (pr.x > maxX) maxX = pr.x;
+      if (pr.y < minY) minY = pr.y;
+      if (pr.y > maxY) maxY = pr.y;
+    }
+
+    final spanX = (maxX - minX).clamp(1e-6, 1e9);
+    final spanY = (maxY - minY).clamp(1e-6, 1e9);
+
+    final scale = math.min(
+      (size.width - 2 * pad) / spanX,
+      (size.height - 2 * pad) / spanY,
+    );
+
+    final midX = (minX + maxX) * 0.5;
+    final midY = (minY + maxY) * 0.5;
+
+    Offset toScreen(_Vec3 v) {
+      final pr = projRaw(v);
+      final sx = cx + (pr.x - midX) * scale;
+      final sy = cy - (pr.y - midY) * scale; // invert y
+      return Offset(sx, sy);
+    }
+
+    // Axes (origin at the cube corner corresponding to min values)
+    // We draw axes along +X, +Y, +Z from (0,0,0) in plot-space.
     final axisPaint = Paint()
       ..color = AppColors.textSecondary.withOpacity(0.85)
       ..strokeWidth = 1.25
       ..isAntiAlias = true;
 
     void line3(_Vec3 a, _Vec3 b, Paint p) {
-      final ra = rot(a);
-      final rb = rot(b);
-      canvas.drawLine(proj(ra), proj(rb), p);
+      final ra = rot(centerShift(a));
+      final rb = rot(centerShift(b));
+      canvas.drawLine(toScreen(ra), toScreen(rb), p);
     }
 
-    // Axes (through origin)
-    line3(_Vec3(-axisLen, 0, 0), _Vec3(axisLen, 0, 0), axisPaint); // X
-    line3(_Vec3(0, -axisLen, 0), _Vec3(0, axisLen, 0), axisPaint); // Y
-    line3(_Vec3(0, 0, -axisLen), _Vec3(0, 0, axisLen), axisPaint); // Z
+    // Origin corner and axes
+    const o = _Vec3(0, 0, 0);
+    line3(o, _Vec3(axisLen, 0, 0), axisPaint); // X
+    line3(o, _Vec3(0, axisLen, 0), axisPaint); // Y
+    line3(o, _Vec3(0, 0, axisLen), axisPaint); // Z
 
-    // Depth-sort points back-to-front
-    final rotated = points.map(rot).toList(growable: false);
-    final indices = List<int>.generate(rotated.length, (i) => i)
-      ..sort((a, b) => rotated[a].z.compareTo(rotated[b].z));
+    // Points (depth-sort back-to-front)
+    final rotatedPoints = points.map((p) => rot(centerShift(p))).toList(growable: false);
+    final indices = List<int>.generate(rotatedPoints.length, (i) => i)
+      ..sort((a, b) => rotatedPoints[a].z.compareTo(rotatedPoints[b].z));
 
     for (final i in indices) {
-      final v = rotated[i];
+      final v = rotatedPoints[i];
 
-      // Subtle depth cue
-      final depthT = ((v.z + 1.5) / 3.0).clamp(0.0, 1.0);
+      // Depth cue: subtle fade + size change
+      // v.z roughly within [-axisLen/2, axisLen/2] after centering
+      final depthT = ((v.z + half) / axisLen).clamp(0.0, 1.0);
+
       final alpha = (0.45 + 0.55 * depthT).clamp(0.0, 1.0);
-      final radius = (2.2 + 1.2 * depthT).clamp(1.8, 3.8);
+      final radius = (2.2 + 1.3 * depthT).clamp(1.8, 4.2);
 
       final paint = Paint()
         ..color = AppColors.accent.withOpacity(alpha)
         ..isAntiAlias = true;
 
-      canvas.drawCircle(proj(v), radius, paint);
+      canvas.drawCircle(toScreen(v), radius, paint);
     }
+
     canvas.restore();
   }
 
@@ -235,12 +279,13 @@ class _Scatter3DPainter extends CustomPainter {
   bool shouldRepaint(covariant _Scatter3DPainter oldDelegate) {
     return oldDelegate.yaw != yaw ||
         oldDelegate.pitch != pitch ||
+        oldDelegate.axisLen != axisLen ||
         oldDelegate.points != points;
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Data helpers
+// Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
 List<double> _maybeMapDateToIndex(PlotAxis axis, List<double> values) {
@@ -254,7 +299,7 @@ List<double> _maybeMapDateToIndex(PlotAxis axis, List<double> values) {
   return values.map((v) => (indexOf[v] ?? 0).toDouble()).toList();
 }
 
-List<double> _normalizeToUnit(List<double> values) {
+List<double> _normalize01(List<double> values) {
   double mn = values.first;
   double mx = values.first;
 
@@ -265,12 +310,10 @@ List<double> _normalizeToUnit(List<double> values) {
 
   final range = mx - mn;
   if (range == 0) {
-    // If all values are identical, put them all on the origin of that axis.
-    // (Other axes can still separate points.)
     return List<double>.filled(values.length, 0.0);
   }
 
-  return values.map((v) => ((v - mn) / range) * 2.0 - 1.0).toList();
+  return values.map((v) => (v - mn) / range).toList(); // [0,1]
 }
 
 @immutable
@@ -280,4 +323,11 @@ class _Vec3 {
   final double z;
 
   const _Vec3(this.x, this.y, this.z);
+}
+
+class _Proj2 {
+  final double x;
+  final double y;
+  final double z;
+  const _Proj2(this.x, this.y, this.z);
 }
