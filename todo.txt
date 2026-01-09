@@ -1,0 +1,55 @@
+==============================
+
+Design:
+- Fonts:
+	- Header: aego box italicized
+	- Accents: JetBrainsMono
+	- Body: JetBrainsMono
+- Colors:
+	- Background: #1E1E1E
+	- Foreground: #F2F2F2
+
+==============================
+
+Features:
+- change plots tab into data tab with ability for plots or data manipulation (i.e. clearing exercise data/deleting exercises)
+- plots:
+	- date selection (3 months, 6 months, max, custom, etc.)
+	- 3d plot
+	- placeholder plot for debugging and for visuals
+		- "example" watermark
+
+- potentially add a notes section
+- slide between exercise and plots screens with swiping
+- add tm and credits somewhere
+
+Bugs:
+- delete sheets on landscape mode lose their bottom padding
+- add sheet on landscape cant see what you're typing
+
+==============================
+   
+DONE:
+Features:
+x - plots:
+	x - separate tab from workouts screen
+	x - 2d plot
+x - add navigate to last button (double arrow) in date scrolling record workout screen
+x - remove "record ." and replace with something better (or just remove)
+x - delete and edit on swipe
+	x - remove details screen, just enter recording directly on press
+x - warning screens:
+	x - Add warning when exiting unfinished workout screen
+	x - Add warning before deleting a workout
+	x - Add warning before clearing unfinished recording
+x - drag and drop exercises to reorder
+x - change add exercise dialogue for something more modern
+x - drag and drop workouts
+
+Bugs:
+x - Letters not capitalized in keyboard during workout creation and exercise adding
+x - fix add exercise text style
+x - warning overlapping
+x - pixel overflow in axis selectors
+x - pick date screen text
+x - use same day's previous set's weight as default instead if it exists
