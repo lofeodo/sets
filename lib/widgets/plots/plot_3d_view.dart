@@ -186,48 +186,11 @@ class _Scatter3DPainter extends CustomPainter {
       ..strokeWidth = 1.25
       ..isAntiAlias = true;
 
-    // Wireframe cube paint (gives immediate 3D structure)
-    final boxPaint = Paint()
-      ..color = AppColors.textSecondary.withOpacity(0.35)
-      ..strokeWidth = 1.0
-      ..isAntiAlias = true;
-
     void line3(_Vec3 a, _Vec3 b, Paint p) {
       final ra = rot(a);
       final rb = rot(b);
       canvas.drawLine(proj(ra), proj(rb), p);
     }
-
-    // 3D cube from [-1,1]^3
-    const double s = 1.05;
-    const corners = <_Vec3>[
-      _Vec3(-s, -s, -s),
-      _Vec3(s, -s, -s),
-      _Vec3(s, s, -s),
-      _Vec3(-s, s, -s),
-      _Vec3(-s, -s, s),
-      _Vec3(s, -s, s),
-      _Vec3(s, s, s),
-      _Vec3(-s, s, s),
-    ];
-
-    // back face
-    line3(corners[0], corners[1], boxPaint);
-    line3(corners[1], corners[2], boxPaint);
-    line3(corners[2], corners[3], boxPaint);
-    line3(corners[3], corners[0], boxPaint);
-
-    // front face
-    line3(corners[4], corners[5], boxPaint);
-    line3(corners[5], corners[6], boxPaint);
-    line3(corners[6], corners[7], boxPaint);
-    line3(corners[7], corners[4], boxPaint);
-
-    // connectors
-    line3(corners[0], corners[4], boxPaint);
-    line3(corners[1], corners[5], boxPaint);
-    line3(corners[2], corners[6], boxPaint);
-    line3(corners[3], corners[7], boxPaint);
 
     // Axes (through origin)
     line3(const _Vec3(-1.2, 0, 0), const _Vec3(1.2, 0, 0), axisPaint); // X
