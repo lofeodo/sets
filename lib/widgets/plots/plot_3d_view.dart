@@ -82,7 +82,7 @@ class _Plot3DViewState extends State<Plot3DView> {
   void _handleDrag(DragUpdateDetails d) {
     setState(() {
       _yaw += d.delta.dx * 0.01;
-      _pitch += -d.delta.dy * 0.01;
+      _pitch += d.delta.dy * 0.01;
       _pitch = _pitch.clamp(-1.2, 1.2);
     });
   }
@@ -248,7 +248,7 @@ class _Scatter3DPainter extends CustomPainter {
       final radius = (2.2 + 1.2 * depthT).clamp(1.8, 3.8);
 
       final paint = Paint()
-        ..color = AppColors.textPrimary.withOpacity(alpha)
+        ..color = AppColors.accent.withOpacity(alpha)
         ..isAntiAlias = true;
 
       canvas.drawCircle(proj(v), radius, paint);
