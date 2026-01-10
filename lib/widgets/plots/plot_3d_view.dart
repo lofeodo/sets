@@ -27,7 +27,7 @@ class _Plot3DViewState extends State<Plot3DView> {
   double _pitch = 0.55;
 
   // World cube side length (plot space will be [0, axisLen] on each axis)
-  static const double _axisLen = 1.0;
+  static const double _axisLen = 0.8;
 
   // Cached points in plot-space [0, axisLen]
   List<_Vec3> _pts = const [];
@@ -216,21 +216,6 @@ class _Scatter3DPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Background
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = AppColors.surface,
-    );
-
-    // Optional subtle border (NOT cube outline)
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()
-        ..color = AppColors.textSecondary.withOpacity(0.25)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
-    );
-
     canvas.save();
     canvas.clipRect(Offset.zero & size);
 

@@ -44,10 +44,7 @@ List<double> buildTicks(double min, double max, {int targetTicks = 4}) {
 
 String formatTick(double v) {
   // Simple, readable formatting (you can tweak later)
-  if (v.abs() >= 1000) return v.toStringAsFixed(0);
-  if (v.abs() >= 100) return v.toStringAsFixed(0);
-  if (v.abs() >= 10) return v.toStringAsFixed(1);
-  return v.toStringAsFixed(2);
+  return formatNum1(v);
 }
 
 double log10(double x) => (x <= 0) ? 0 : (math.log(x) / math.ln10);
@@ -84,4 +81,4 @@ String formatEpochMsMonthDay(double epochMs) {
 }
 
 /// Match Plot2D number format: 1 decimal place
-String formatNum1(double v) => v.toStringAsFixed(1);
+String formatNum1(double v) => v.round().toString();
