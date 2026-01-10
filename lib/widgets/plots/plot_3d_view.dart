@@ -427,11 +427,11 @@ class _Scatter3DPainter extends CustomPainter {
         axisPoint: p,
         tickDir: _Vec3(-tickSize, 0, 0),
         label: _labelForTick(
-          axisIsDate: xDateLabels.isNotEmpty,
+          axisIsDate: yDateLabels.isNotEmpty,
           tickValue: v,
-          axisMin: xMin,
-          axisMax: xMax,
-          dateLabels: xDateLabels,
+          axisMin: yMin,
+          axisMax: yMax,
+          dateLabels: yDateLabels,
         ),
       );
     }
@@ -445,11 +445,11 @@ class _Scatter3DPainter extends CustomPainter {
         axisPoint: p,
         tickDir: _Vec3(tickSize, 0, 0),
         label: _labelForTick(
-          axisIsDate: xDateLabels.isNotEmpty,
+          axisIsDate: zDateLabels.isNotEmpty,
           tickValue: v,
-          axisMin: xMin,
-          axisMax: xMax,
-          dateLabels: xDateLabels,
+          axisMin: zMin,
+          axisMax: zMax,
+          dateLabels: zDateLabels,
         ),
       );
     }
