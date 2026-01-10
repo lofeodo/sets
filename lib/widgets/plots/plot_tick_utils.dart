@@ -43,7 +43,6 @@ List<double> buildTicks(double min, double max, {int targetTicks = 4}) {
 }
 
 String formatTick(double v) {
-  // Simple, readable formatting (you can tweak later)
   return formatNum1(v);
 }
 
