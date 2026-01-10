@@ -36,6 +36,10 @@ class _Plot3DViewState extends State<Plot3DView> {
   double _yMin = 0, _yMax = 1;
   double _zMin = 0, _zMax = 1;
 
+  Map<int, String> _xDateLabels = const {};
+  Map<int, String> _yDateLabels = const {};
+  Map<int, String> _zDateLabels = const {};
+
   @override
   void initState() {
     super.initState();
@@ -78,6 +82,10 @@ class _Plot3DViewState extends State<Plot3DView> {
     final xMapped = _maybeMapDateToIndex(widget.spec.xAxis, xVals);
     final yMapped = _maybeMapDateToIndex(widget.spec.yAxis, yVals);
     final zMapped = _maybeMapDateToIndex(widget.spec.zAxis!, zVals);
+
+    _xDateLabels = _buildDateIndexLabels(widget.spec.xAxis, xVals);
+    _yDateLabels = _buildDateIndexLabels(widget.spec.yAxis, yVals);
+    _zDateLabels = _buildDateIndexLabels(widget.spec.zAxis!, zVals);
 
     _xMin = xMapped.reduce(math.min);
     _xMax = xMapped.reduce(math.max);
@@ -141,6 +149,9 @@ class _Plot3DViewState extends State<Plot3DView> {
               yMax: _yMax,
               zMin: _zMin,
               zMax: _zMax,
+              xDateLabels: _xDateLabels,
+              yDateLabels: _yDateLabels,
+              zDateLabels: _zDateLabels,
             ),
           ),
         ),
@@ -162,6 +173,10 @@ class _Scatter3DPainter extends CustomPainter {
   final String yLabel;
   final String zLabel;
   final TextStyle labelStyle;
+  final Map<int, String> xDateLabels;
+  final Map<int, String> yDateLabels;
+  final Map<int, String> zDateLabels;
+
 
   const _Scatter3DPainter({
     required this.points,
@@ -178,7 +193,26 @@ class _Scatter3DPainter extends CustomPainter {
     required this.yMax,
     required this.zMin,
     required this.zMax,
+    required this.xDateLabels,
+    required this.yDateLabels,
+    required this.zDateLabels,
   });
+
+  String _labelForTick({
+    required bool axisIsDate,
+    required double tickValue,
+    required double axisMin,
+    required double axisMax,
+    required Map<int, String> dateLabels,
+  }) {
+    if (!axisIsDate) return formatTick(tickValue);
+
+    // tickValue is in DATA space for the axis. For date axes, your data space
+    // is "index". Convert it to the nearest index and look up formatted label.
+    final idx = tickValue.round();
+    return dateLabels[idx] ?? formatTick(tickValue);
+    
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -374,7 +408,13 @@ class _Scatter3DPainter extends CustomPainter {
       drawTick(
         axisPoint: p,
         tickDir: _Vec3(0, -tickSize, 0),
-        label: formatTick(v),
+        label: _labelForTick(
+          axisIsDate: xDateLabels.isNotEmpty,
+          tickValue: v,
+          axisMin: xMin,
+          axisMax: xMax,
+          dateLabels: xDateLabels,
+        ),
       );
     }
 
@@ -386,7 +426,13 @@ class _Scatter3DPainter extends CustomPainter {
       drawTick(
         axisPoint: p,
         tickDir: _Vec3(-tickSize, 0, 0),
-        label: formatTick(v),
+        label: _labelForTick(
+          axisIsDate: xDateLabels.isNotEmpty,
+          tickValue: v,
+          axisMin: xMin,
+          axisMax: xMax,
+          dateLabels: xDateLabels,
+        ),
       );
     }
 
@@ -398,7 +444,13 @@ class _Scatter3DPainter extends CustomPainter {
       drawTick(
         axisPoint: p,
         tickDir: _Vec3(tickSize, 0, 0),
-        label: formatTick(v),
+        label: _labelForTick(
+          axisIsDate: xDateLabels.isNotEmpty,
+          tickValue: v,
+          axisMin: xMin,
+          axisMax: xMax,
+          dateLabels: xDateLabels,
+        ),
       );
     }
 
@@ -513,4 +565,18 @@ class _Proj2 {
   final double y;
   final double z;
   const _Proj2(this.x, this.y, this.z);
+}
+
+Map<int, String> _buildDateIndexLabels(PlotAxis axis, List<double> rawValues) {
+  if (axis != PlotAxis.date) return const {};
+
+  // rawValues are your original date values (same ones you map to indices).
+  // In your pipeline they behave like epoch-ms doubles.
+  final unique = rawValues.toSet().toList()..sort();
+
+  final map = <int, String>{};
+  for (int i = 0; i < unique.length; i++) {
+    map[i] = formatEpochMsMonthDay(unique[i]); // from plot_tick_utils.dart
+  }
+  return map;
 }
