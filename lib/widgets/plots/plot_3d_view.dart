@@ -541,7 +541,7 @@ class _Scatter3DPainter extends CustomPainter {
     // ── Projected 2D point clouds on the three origin faces (x=0, y=0, z=0) ──
     // Draw these BEFORE the real 3D points so they appear behind.
     final projPaint = Paint()
-      ..color = AppColors.textPrimary.withOpacity(0.35)
+      ..color = AppColors.textPrimary.withOpacity(0.1)
       ..isAntiAlias = true;
 
     const projRadius = 1.8;
