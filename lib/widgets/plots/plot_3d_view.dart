@@ -101,10 +101,29 @@ class _Plot3DViewState extends State<Plot3DView> {
     if (_yMin == _yMax) { _yMin -= 1; _yMax += 1; }
     if (_zMin == _zMax) { _zMin -= 1; _zMax += 1; }
 
-    // Normalize into [0,1] so there are no “negative” plot values
-    final xs = _normalize01(xMapped);
-    final ys = _normalize01(yMapped);
-    final zs = _normalize01(zMapped);
+    // ---- NEW: Expand axis bounds to the "outermost nice tick" ----
+    final xTicks = buildTicks(_xMin, _xMax, targetTicks: 4);
+    if (xTicks.isNotEmpty) {
+      _xMin = xTicks.first;
+      _xMax = xTicks.last;
+    }
+
+    final yTicks = buildTicks(_yMin, _yMax, targetTicks: 4);
+    if (yTicks.isNotEmpty) {
+      _yMin = yTicks.first;
+      _yMax = yTicks.last;
+    }
+
+    final zTicks = buildTicks(_zMin, _zMax, targetTicks: 4);
+    if (zTicks.isNotEmpty) {
+      _zMin = zTicks.first;
+      _zMax = zTicks.last;
+    }
+
+    // Normalize into [0,1] using the (possibly expanded) bounds
+    final xs = _normalize01WithBounds(xMapped, _xMin, _xMax);
+    final ys = _normalize01WithBounds(yMapped, _yMin, _yMax);
+    final zs = _normalize01WithBounds(zMapped, _zMin, _zMax);
 
     _pts = List<_Vec3>.generate(
       raw.length,
@@ -548,6 +567,21 @@ List<double> _normalize01(List<double> values) {
   }
 
   return values.map((v) => (v - mn) / range).toList(); // [0,1]
+}
+
+List<double> _normalize01WithBounds(List<double> values, double mn, double mx) {
+  final range = mx - mn;
+  if (range == 0) {
+    return List<double>.filled(values.length, 0.0);
+  }
+
+  return values.map((v) {
+    final t = (v - mn) / range;
+    // Clamp just in case floating error or values slightly outside due to "nice" expansion.
+    if (t < 0) return 0.0;
+    if (t > 1) return 1.0;
+    return t;
+  }).toList();
 }
 
 @immutable
