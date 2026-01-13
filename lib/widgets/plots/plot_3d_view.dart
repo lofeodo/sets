@@ -227,7 +227,7 @@ class _Scatter3DPainter extends CustomPainter {
     if (!axisIsDate) return formatTick(tickValue);
 
     final idx = tickValue.round();
-    return dateLabels[idx] ?? formatTick(tickValue);
+    return dateLabels[idx] ?? "";
     
   }
 
