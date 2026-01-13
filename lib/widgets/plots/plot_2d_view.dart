@@ -6,6 +6,7 @@ import 'plot_axis.dart';
 import 'plot_spec.dart';
 import 'plot_data.dart';
 import 'plot_tick_utils.dart';
+import '../../theme/app_colors.dart';
 
 class Plot2DView extends StatefulWidget {
   final PlotSpec spec;
@@ -35,28 +36,41 @@ class _Plot2DViewState extends State<Plot2DView> {
       );
     }
 
-    // Sort by x (x is ms since epoch when xAxis == date)
+    // Sort by x for a stable ordering
     final sorted = [...points]..sort((a, b) => a.x.compareTo(b.x));
 
     final xIsDate = widget.spec.xAxis == PlotAxis.date;
+    final yIsDate = widget.spec.yAxis == PlotAxis.date;
 
-    // --- Key fix: if x is date, use a linear index for the chart's x-coordinate ---
-    late final List<FlSpot> spots;
-    late final List<DateTime> dateByIndex;
+    // Build date-index maps for any date axis
+    List<DateTime> xDateByIndex = const [];
+    List<DateTime> yDateByIndex = const [];
+
+    Map<int, int> xMsToIndex = const {};
+    Map<int, int> yMsToIndex = const {};
 
     if (xIsDate) {
-      dateByIndex = sorted
-          .map((p) => DateTime.fromMillisecondsSinceEpoch(p.x.round()))
-          .toList();
-
-      spots = List.generate(
-        sorted.length,
-        (i) => FlSpot(i.toDouble(), sorted[i].y),
-      );
-    } else {
-      dateByIndex = const [];
-      spots = sorted.map((p) => FlSpot(p.x, p.y)).toList();
+      final xs = sorted.map((p) => p.x.round()).toSet().toList()..sort();
+      xDateByIndex = xs.map(DateTime.fromMillisecondsSinceEpoch).toList();
+      xMsToIndex = {
+        for (int i = 0; i < xs.length; i++) xs[i]: i,
+      };
     }
+
+    if (yIsDate) {
+      final ys = sorted.map((p) => p.y.round()).toSet().toList()..sort();
+      yDateByIndex = ys.map(DateTime.fromMillisecondsSinceEpoch).toList();
+      yMsToIndex = {
+        for (int i = 0; i < ys.length; i++) ys[i]: i,
+      };
+    }
+
+    // Build chart spots (date axes become linear indices)
+    final spots = sorted.map((p) {
+      final xVal = xIsDate ? (xMsToIndex[p.x.round()] ?? 0).toDouble() : p.x;
+      final yVal = yIsDate ? (yMsToIndex[p.y.round()] ?? 0).toDouble() : p.y;
+      return FlSpot(xVal, yVal);
+    }).toList();
 
     // Compute bounds
     double minX = spots.first.x, maxX = spots.first.x;
@@ -79,12 +93,44 @@ class _Plot2DViewState extends State<Plot2DView> {
       maxY += 1;
     }
 
-    // Tick intervals
-    final bottomInterval = xIsDate
-        ? dateTickInterval(spots.length) // linear index ticks
-        : niceInterval(minX, maxX, targetTicks: 4);
+    // Expand axes to "nice" tick endpoints
+    late final double bottomInterval;
+    late final double leftInterval;
 
-    final leftInterval = niceInterval(minY, maxY, targetTicks: 4);
+    // X axis
+    if (xIsDate) {
+      // Date indices are [0 .. xDateByIndex.length-1]
+      minX = 0;
+      maxX = max(0, xDateByIndex.length - 1).toDouble();
+
+      bottomInterval = dateTickInterval(xDateByIndex.length);
+      // Extend maxX to land exactly on a tick
+      maxX = (maxX / bottomInterval).ceilToDouble() * bottomInterval;
+    } else {
+      final xTicks = buildTicks(minX, maxX, targetTicks: 4);
+      if (xTicks.isNotEmpty) {
+        minX = xTicks.first;
+        maxX = xTicks.last;
+      }
+      bottomInterval = xTicks.length >= 2 ? (xTicks[1] - xTicks[0]) : niceInterval(minX, maxX);
+    }
+
+    // Y axis
+    if (yIsDate) {
+      minY = 0;
+      maxY = max(0, yDateByIndex.length - 1).toDouble();
+
+      leftInterval = dateTickInterval(yDateByIndex.length);
+      maxY = (maxY / leftInterval).ceilToDouble() * leftInterval;
+    } else {
+      final yTicks = buildTicks(minY, maxY, targetTicks: 4);
+      if (yTicks.isNotEmpty) {
+        minY = yTicks.first;
+        maxY = yTicks.last;
+      }
+      leftInterval = yTicks.length >= 2 ? (yTicks[1] - yTicks[0]) : niceInterval(minY, maxY);
+    }
+
     final yLabels = _yTickLabels(minY, maxY, leftInterval, formatNum1);
     final leftReserved = _measureMaxLabelWidth(
       context,
@@ -126,10 +172,11 @@ class _Plot2DViewState extends State<Plot2DView> {
 
                   if (xIsDate) {
                     final idx = value.round();
-                    if (idx < 0 || idx >= dateByIndex.length) {
-                      return const SizedBox.shrink();
+                    if (idx < 0 || idx >= xDateByIndex.length) {
+                      text = '';
+                    } else {
+                      text = formatMonthDay(xDateByIndex[idx]);
                     }
-                    text = formatMonthDay(dateByIndex[idx]);
                   } else {
                     text = formatNum1(value);
                   }
@@ -148,9 +195,22 @@ class _Plot2DViewState extends State<Plot2DView> {
                 reservedSize: leftReserved,
                 interval: leftInterval,
                 getTitlesWidget: (value, meta) {
+                  String text;
+
+                  if (yIsDate) {
+                    final idx = value.round();
+                    if (idx < 0 || idx >= yDateByIndex.length) {
+                      text = '';
+                    } else {
+                      text = formatMonthDay(yDateByIndex[idx]);
+                    }
+                  } else {
+                    text = formatNum1(value);
+                  }
+
                   return SideTitleWidget(
                     axisSide: meta.axisSide,
-                    child: Text(formatNum1(value), style: const TextStyle(fontSize: 11)),
+                    child: Text(text, style: const TextStyle(fontSize: 11)),
                   );
                 },
               ),
@@ -164,9 +224,11 @@ class _Plot2DViewState extends State<Plot2DView> {
               getTooltipItems: (touchedSpots) {
                 return touchedSpots.map((ts) {
                   final xLabel = xIsDate
-                      ? formatMonthDay(dateByIndex[ts.x.round().clamp(0, dateByIndex.length - 1)])
+                      ? formatMonthDay(xDateByIndex[ts.x.round().clamp(0, xDateByIndex.length - 1)])
                       : formatNum1(ts.x);
-                  final yLabel = formatNum1(ts.y);
+                  final yLabel = yIsDate
+                    ? formatMonthDay(yDateByIndex[ts.y.round().clamp(0, yDateByIndex.length - 1)])
+                    : formatNum1(ts.y);
 
                   return LineTooltipItem(
                     '$xLabel\n$yLabel',
@@ -180,9 +242,19 @@ class _Plot2DViewState extends State<Plot2DView> {
           lineBarsData: [
             LineChartBarData(
               spots: spots,
+              color: AppColors.accent,
               isCurved: false,
               barWidth: 2,
-              dotData: FlDotData(show: true),
+                dotData: FlDotData(
+                  show: true,
+                  getDotPainter: (spot, percent, barData, index) {
+                    return FlDotCirclePainter(
+                      radius: 3,
+                      color: AppColors.accent,
+                      strokeWidth: 0,
+                    );
+                  },
+                ),
               belowBarData: BarAreaData(show: false),
             ),
           ],
