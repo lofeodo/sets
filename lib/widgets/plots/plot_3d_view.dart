@@ -336,6 +336,27 @@ class _Scatter3DPainter extends CustomPainter {
     line3(o, _Vec3(0, axisLen, 0), axisPaint); // Y
     line3(o, _Vec3(0, 0, axisLen), axisPaint); // Z
 
+    // ---- NEW: inner face outlines (the 3 far faces of the cube) ----
+    final facePaint = Paint()
+      ..color = AppColors.textSecondary.withOpacity(0.45)
+      ..strokeWidth = 1.0
+      ..isAntiAlias = true;
+
+    // Far corner (max,max,max)
+    final a = axisLen;
+
+    // Face at x = max (YZ plane): (a,0,0) -> (a,a,0) -> (a,a,a) -> (a,0,a)
+    line3(_Vec3(a, 0, 0), _Vec3(a, a, 0), facePaint);
+    line3(_Vec3(a, 0, a), _Vec3(a, 0, 0), facePaint);
+
+    // Face at y = max (XZ plane): (0,a,0) -> (a,a,0) -> (a,a,a) -> (0,a,a)
+    line3(_Vec3(0, a, 0), _Vec3(a, a, 0), facePaint);
+    line3(_Vec3(0, a, a), _Vec3(0, a, 0), facePaint);
+
+    // Face at z = max (XY plane): (0,0,a) -> (a,0,a) -> (a,a,a) -> (0,a,a)
+    line3(_Vec3(0, 0, a), _Vec3(a, 0, a), facePaint);
+    line3(_Vec3(0, a, a), _Vec3(0, 0, a), facePaint);
+
     // Axis labels (slightly offset outward)
     const labelPad = 10.0;
 
