@@ -381,9 +381,23 @@ class _Scatter3DPainter extends CustomPainter {
     }
 
     // Build nice ticks in DATA SPACE (real values)
-    final xTicks = buildTicks(xMin, xMax, targetTicks: 4);
-    final yTicks = buildTicks(yMin, yMax, targetTicks: 4);
-    final zTicks = buildTicks(zMin, zMax, targetTicks: 4);
+    List<double> _clampTicks(double min, double max) {
+      const eps = 1e-9;
+      final raw = buildTicks(min, max, targetTicks: 4);
+
+      // Keep only ticks inside [min, max]
+      final out = raw.where((v) => v >= min - eps && v <= max + eps).toList();
+
+      // Ensure we include the max tick exactly (nice ticks sometimes miss it after filtering)
+      if (!out.any((v) => (v - max).abs() <= eps)) out.add(max);
+
+      out.sort();
+      return out;
+    }
+
+    final xTicks = _clampTicks(xMin, xMax);
+    final yTicks = _clampTicks(yMin, yMax);
+    final zTicks = _clampTicks(zMin, zMax);
 
     // X axis ticks: along +X from origin
     for (final v in xTicks) {
