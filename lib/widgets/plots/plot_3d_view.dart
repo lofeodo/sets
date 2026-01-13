@@ -538,6 +538,31 @@ class _Scatter3DPainter extends CustomPainter {
       );
     }
 
+    // ── Projected 2D point clouds on the three origin faces (x=0, y=0, z=0) ──
+    // Draw these BEFORE the real 3D points so they appear behind.
+    final projPaint = Paint()
+      ..color = AppColors.textPrimary.withOpacity(0.35)
+      ..isAntiAlias = true;
+
+    const projRadius = 1.8;
+
+    void drawProjectedPoint(_Vec3 p) {
+      final rp = rot(centerShift(p));
+      canvas.drawCircle(toScreen(rp), projRadius, projPaint);
+    }
+
+    // NOTE: `points` are in plot-space [0..axisLen]. We project by "dropping" one coordinate.
+    for (final p in points) {
+      // On face x = 0 (YZ plane)
+      drawProjectedPoint(_Vec3(0, p.y, p.z));
+
+      // On face y = 0 (XZ plane)
+      drawProjectedPoint(_Vec3(p.x, 0, p.z));
+
+      // On face z = 0 (XY plane)
+      drawProjectedPoint(_Vec3(p.x, p.y, 0));
+    }
+
     // Points (depth-sort back-to-front)
     final rotatedPoints = points.map((p) => rot(centerShift(p))).toList(growable: false);
     final indices = List<int>.generate(rotatedPoints.length, (i) => i)
