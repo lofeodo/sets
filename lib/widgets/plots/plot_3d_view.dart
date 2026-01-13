@@ -27,11 +27,11 @@ class _Plot3DViewState extends State<Plot3DView> {
   double _pitch = 0.55;
 
   // Pinch zoom: 1.0 == "fits perfectly within the frame"
-  static const double _minZoom = 1.0;
+  static const double _minZoom = 0.8;
   static const double _maxZoom = 3.0; // reachable in one pinch, not insane
 
-  double _zoom = 1.0;
-  double _zoomStart = 1.0;
+  double _zoom = _minZoom;
+  double _zoomStart = _minZoom;
 
   // World cube side length (plot space will be [0, axisLen] on each axis)
   static const double _axisLen = 0.8;
