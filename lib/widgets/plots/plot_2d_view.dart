@@ -131,14 +131,16 @@ class _Plot2DViewState extends State<Plot2DView> {
       leftInterval = yTicks.length >= 2 ? (yTicks[1] - yTicks[0]) : niceInterval(minY, maxY);
     }
 
-    final yLabels = _yTickLabels(minY, maxY, leftInterval, formatNum1);
+    final yLabels = yIsDate
+        ? _yDateTickLabels(minY, maxY, leftInterval, yDateByIndex)
+        : _yTickLabels(minY, maxY, leftInterval, formatNum1);
+
     final leftReserved = _measureMaxLabelWidth(
       context,
       yLabels,
       fontSize: 11,
       extraPadding: 10,
     );
-
 
     return Padding(
       padding: EdgeInsets.zero,
@@ -316,6 +318,51 @@ List<String> _yTickLabels(
 
   labels.add(fmt(minY));
   labels.add(fmt(maxY));
+
+  return labels.toSet().toList();
+}
+
+List<String> _yDateTickLabels(
+  double minY,
+  double maxY,
+  double interval,
+  List<DateTime> dateByIndex,
+) {
+  if (dateByIndex.isEmpty) return const [];
+
+  if (interval <= 0 || minY.isNaN || maxY.isNaN) {
+    return [
+      formatMonthDay(dateByIndex[minY.round().clamp(0, dateByIndex.length - 1)]),
+      formatMonthDay(dateByIndex[maxY.round().clamp(0, dateByIndex.length - 1)]),
+    ];
+  }
+
+  final start = (minY / interval).floor() * interval;
+
+  final labels = <String>[];
+  const maxTicks = 128;
+
+  double v = start;
+  int count = 0;
+
+  while (v <= maxY + interval && count < maxTicks) {
+    final idx = v.round();
+    if (idx >= 0 && idx < dateByIndex.length) {
+      labels.add(formatMonthDay(dateByIndex[idx]));
+    }
+    v += interval;
+    count++;
+  }
+
+  // Ensure bounds are included (and in-range)
+  final minIdx = minY.round();
+  final maxIdx = maxY.round();
+  if (minIdx >= 0 && minIdx < dateByIndex.length) {
+    labels.add(formatMonthDay(dateByIndex[minIdx]));
+  }
+  if (maxIdx >= 0 && maxIdx < dateByIndex.length) {
+    labels.add(formatMonthDay(dateByIndex[maxIdx]));
+  }
 
   return labels.toSet().toList();
 }
