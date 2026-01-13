@@ -209,13 +209,19 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
     if (!_canGoNext) return;
 
     final target = await _findNextWorkoutDate(workoutName, exercises);
+
+    // If there is no *later* recorded workout date, bring the user to today.
     if (target == null) {
+      await _jumpToDate(_today, workoutName, exercises);
+
+      // Optional: a small hint to explain what happened.
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No next recorded workout found.')),
+        const SnackBar(content: Text('No next recorded workout — jumped to today.')),
       );
       return;
     }
+
     await _jumpToDate(target, workoutName, exercises);
   }
 

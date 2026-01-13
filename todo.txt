@@ -15,9 +15,6 @@ Features:
 - change plots tab into data tab with ability for plots or data manipulation (i.e. clearing exercise data/deleting exercises)
 - plots:
 	- date selection (3 months, 6 months, max, custom, etc.)
-	- 3d plot
-	- placeholder plot for debugging and for visuals
-		- "example" watermark
 
 - potentially add a notes section
 - slide between exercise and plots screens with swiping
@@ -34,6 +31,8 @@ Features:
 x - plots:
 	x - separate tab from workouts screen
 	x - 2d plot
+	x - 3d plot
+		x - placeholder plot for debugging and for visuals
 x - add navigate to last button (double arrow) in date scrolling record workout screen
 x - remove "record ." and replace with something better (or just remove)
 x - delete and edit on swipe
