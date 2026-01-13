@@ -26,6 +26,13 @@ class _Plot3DViewState extends State<Plot3DView> {
   double _yaw = -0.9;
   double _pitch = 0.55;
 
+  // Pinch zoom: 1.0 == "fits perfectly within the frame"
+  static const double _minZoom = 1.0;
+  static const double _maxZoom = 3.0; // reachable in one pinch, not insane
+
+  double _zoom = 1.0;
+  double _zoomStart = 1.0;
+
   // World cube side length (plot space will be [0, axisLen] on each axis)
   static const double _axisLen = 0.8;
 
@@ -57,14 +64,6 @@ class _Plot3DViewState extends State<Plot3DView> {
         oldWidget.spec.zAxis != widget.spec.zAxis) {
       _rebuildCache();
     }
-  }
-
-  void _handleDrag(DragUpdateDetails d) {
-    setState(() {
-      _yaw += d.delta.dx * 0.01;
-      _pitch += d.delta.dy * 0.01;
-      _pitch = _pitch.clamp(-1.2, 1.2);
-    });
   }
 
   void _rebuildCache() {
@@ -149,7 +148,29 @@ class _Plot3DViewState extends State<Plot3DView> {
 
     final textStyle = Theme.of(context).textTheme.labelMedium!;
     return GestureDetector(
-      onPanUpdate: _handleDrag,
+      behavior: HitTestBehavior.opaque,
+
+      onScaleStart: (details) {
+        _zoomStart = _zoom;
+      },
+
+      onScaleUpdate: (details) {
+        setState(() {
+          // 1-finger = rotate (stable, uses incremental delta each update)
+          if (details.pointerCount == 1) {
+            const rotSpeed = 0.01;
+            _yaw += details.focalPointDelta.dx * rotSpeed;
+            _pitch += details.focalPointDelta.dy * rotSpeed;
+            _pitch = _pitch.clamp(-1.2, 1.2);
+            return;
+          }
+
+          // 2+ fingers = zoom (scale is relative to gesture start)
+          final nextZoom = (_zoomStart * details.scale).clamp(_minZoom, _maxZoom);
+          _zoom = nextZoom;
+        });
+      },
+
       child: RepaintBoundary(
         child: SizedBox.expand(
           child: CustomPaint(
@@ -157,6 +178,7 @@ class _Plot3DViewState extends State<Plot3DView> {
               points: _pts,
               yaw: _yaw,
               pitch: _pitch,
+              zoom: _zoom,
               axisLen: _axisLen,
               xLabel: widget.spec.xAxis.label,
               yLabel: widget.spec.yAxis.label,
@@ -183,6 +205,7 @@ class _Scatter3DPainter extends CustomPainter {
   final List<_Vec3> points;
   final double yaw;
   final double pitch;
+  final double zoom;
   final double axisLen;
   final double xMin, xMax;
   final double yMin, yMax;
@@ -201,6 +224,7 @@ class _Scatter3DPainter extends CustomPainter {
     required this.points,
     required this.yaw,
     required this.pitch,
+    required this.zoom,
     required this.axisLen,
     required this.xLabel,
     required this.yLabel,
@@ -300,10 +324,13 @@ class _Scatter3DPainter extends CustomPainter {
     final spanX = (maxX - minX).clamp(1e-6, 1e9);
     final spanY = (maxY - minY).clamp(1e-6, 1e9);
 
-    final scale = math.min(
+    final fitScale = math.min(
       (size.width - 2 * pad) / spanX,
       (size.height - 2 * pad) / spanY,
     );
+
+    // 1.0 = fit perfectly, >1 zoom in
+    final scale = fitScale * zoom;
 
     final midX = (minX + maxX) * 0.5;
     final midY = (minY + maxY) * 0.5;
@@ -592,6 +619,7 @@ class _Scatter3DPainter extends CustomPainter {
   bool shouldRepaint(covariant _Scatter3DPainter oldDelegate) {
     return oldDelegate.yaw != yaw ||
         oldDelegate.pitch != pitch ||
+        oldDelegate.zoom != zoom ||
         oldDelegate.axisLen != axisLen ||
         oldDelegate.points != points ||
         oldDelegate.xLabel != xLabel ||
