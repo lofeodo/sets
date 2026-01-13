@@ -439,6 +439,53 @@ class _Scatter3DPainter extends CustomPainter {
     final yTicks = _clampTicks(yMin, yMax);
     final zTicks = _clampTicks(zMin, zMax);
 
+    double _tickToAxisPos(double v, double min, double max) {
+      final d = max - min;
+      if (d.abs() < 1e-9) return 0.0;
+      final t = (v - min) / d;
+      return axisLen * t;
+    }
+
+    // ---- NEW: grid lines on inner faces (aligned to ticks) ----
+    final gridPaint = Paint()
+      ..color = AppColors.textSecondary.withOpacity(0.18)
+      ..strokeWidth = 1.0
+      ..isAntiAlias = true;
+
+    // Precompute tick positions in axis space
+    final xTickPos = xTicks.map((v) => _tickToAxisPos(v, xMin, xMax)).toList();
+    final yTickPos = yTicks.map((v) => _tickToAxisPos(v, yMin, yMax)).toList();
+    final zTickPos = zTicks.map((v) => _tickToAxisPos(v, zMin, zMax)).toList();
+
+    // Helper: skip boundary lines (0 and a) to avoid doubling edges
+    bool _isInner(double p) => p > 1e-6 && p < a - 1e-6;
+
+    // ---- Grid faces at the ORIGIN side: x=0, y=0, z=0 ----
+
+    // Face x = 0 (YZ plane): lines parallel to Z for each Y tick, and parallel to Y for each Z tick
+    for (final y in yTickPos) {
+      if (_isInner(y)) line3(_Vec3(0, y, 0), _Vec3(0, y, a), gridPaint);
+    }
+    for (final z in zTickPos) {
+      if (_isInner(z)) line3(_Vec3(0, 0, z), _Vec3(0, a, z), gridPaint);
+    }
+
+    // Face y = 0 (XZ plane): lines parallel to Z for each X tick, and parallel to X for each Z tick
+    for (final x in xTickPos) {
+      if (_isInner(x)) line3(_Vec3(x, 0, 0), _Vec3(x, 0, a), gridPaint);
+    }
+    for (final z in zTickPos) {
+      if (_isInner(z)) line3(_Vec3(0, 0, z), _Vec3(a, 0, z), gridPaint);
+    }
+
+    // Face z = 0 (XY plane): lines parallel to Y for each X tick, and parallel to X for each Y tick
+    for (final x in xTickPos) {
+      if (_isInner(x)) line3(_Vec3(x, 0, 0), _Vec3(x, a, 0), gridPaint);
+    }
+    for (final y in yTickPos) {
+      if (_isInner(y)) line3(_Vec3(0, y, 0), _Vec3(a, y, 0), gridPaint);
+    }
+
     // X axis ticks: along +X from origin
     for (final v in xTicks) {
       if (v <= xMin + 1e-9) continue; // skip origin tick to avoid clutter
