@@ -238,6 +238,213 @@ class _Plot3DViewState extends State<Plot3DView> {
     return bestIdx;
   }
 
+  Offset? _screenPosForPointIndex(int idx, Size size) {
+    if (idx < 0 || idx >= _pts.length) return null;
+
+    // MUST match painter math (including zoom)
+    const pad = 6.0;
+    const camDist = 3.2;
+
+    final cx = size.width * 0.5;
+    final cy = size.height * 0.5;
+
+    final cyaw = math.cos(_yaw);
+    final syaw = math.sin(_yaw);
+    final cp = math.cos(_pitch);
+    final sp = math.sin(_pitch);
+
+    final half = _axisLen * 0.5;
+    _Vec3 centerShift(_Vec3 v) => _Vec3(v.x - half, v.y - half, v.z - half);
+
+    _Vec3 rot(_Vec3 v) {
+      // yaw around Y
+      final x1 = v.x * cyaw + v.z * syaw;
+      final y1 = v.y;
+      final z1 = -v.x * syaw + v.z * cyaw;
+
+      // pitch around X
+      final x2 = x1;
+      final y2 = y1 * cp - z1 * sp;
+      final z2 = y1 * sp + z1 * cp;
+
+      return _Vec3(x2, y2, z2);
+    }
+
+    _Proj2 projRaw(_Vec3 v) {
+      final denom = camDist - (v.z / _axisLen);
+      final p = 1.0 / denom;
+      return _Proj2(v.x * p, v.y * p, v.z);
+    }
+
+    // Compute fit bounds from rotated cube corners (same as painter)
+    final cubeCorners = <_Vec3>[
+      _Vec3(0, 0, 0),
+      _Vec3(_axisLen, 0, 0),
+      _Vec3(_axisLen, _axisLen, 0),
+      _Vec3(0, _axisLen, 0),
+      _Vec3(0, 0, _axisLen),
+      _Vec3(_axisLen, 0, _axisLen),
+      _Vec3(_axisLen, _axisLen, _axisLen),
+      _Vec3(0, _axisLen, _axisLen),
+    ].map((v) => rot(centerShift(v))).toList(growable: false);
+
+    double minX = double.infinity, maxX = -double.infinity;
+    double minY = double.infinity, maxY = -double.infinity;
+
+    for (final c in cubeCorners) {
+      final pr = projRaw(c);
+      if (pr.x < minX) minX = pr.x;
+      if (pr.x > maxX) maxX = pr.x;
+      if (pr.y < minY) minY = pr.y;
+      if (pr.y > maxY) maxY = pr.y;
+    }
+
+    final spanX = (maxX - minX).clamp(1e-6, 1e9);
+    final spanY = (maxY - minY).clamp(1e-6, 1e9);
+
+    final fitScale = math.min(
+      (size.width - 2 * pad) / spanX,
+      (size.height - 2 * pad) / spanY,
+    );
+
+    final scale = fitScale * _zoom; // <-- critical for correct positioning when zoomed
+
+    final midX = (minX + maxX) * 0.5;
+    final midY = (minY + maxY) * 0.5;
+
+    Offset toScreen(_Vec3 v) {
+      final pr = projRaw(v);
+      final sx = cx + (pr.x - midX) * scale;
+      final sy = cy - (pr.y - midY) * scale;
+      return Offset(sx, sy);
+    }
+
+    final rp = rot(centerShift(_pts[idx]));
+    return toScreen(rp);
+  }
+
+  Widget _buildTooltipOverlay(Size size) {
+    final idx = _selectedPointIndex!;
+    final p = _pts[idx];
+
+    String fmtAxis({
+      required String label,
+      required double coord, // in plot-space [0..axisLen]
+      required double min,
+      required double max,
+      required Map<int, String> dateLabels,
+    }) {
+      final v = min + (coord / _axisLen) * (max - min);
+
+      // Date axis if dateLabels provided; use nearest index label
+      if (dateLabels.isNotEmpty) {
+        final k = v.round();
+        final s = dateLabels[k];
+        return '$label: ${s ?? ''}';
+      }
+
+      return '$label: ${formatTick(v)}';
+    }
+
+    final lines = <String>[
+      fmtAxis(
+        label: widget.spec.xAxis.label,
+        coord: p.x,
+        min: _xMin,
+        max: _xMax,
+        dateLabels: _xDateLabels,
+      ),
+      fmtAxis(
+        label: widget.spec.yAxis.label,
+        coord: p.y,
+        min: _yMin,
+        max: _yMax,
+        dateLabels: _yDateLabels,
+      ),
+      fmtAxis(
+        label: widget.spec.zAxis!.label,
+        coord: p.z,
+        min: _zMin,
+        max: _zMax,
+        dateLabels: _zDateLabels,
+      ),
+    ];
+
+    final pos = _screenPosForPointIndex(idx, size) ?? Offset(size.width / 2, size.height / 2);
+
+    // Tooltip placement (simple clamp)
+    const tooltipH = 78.0;
+    const margin = 8.0;
+
+    double left = pos.dx + 12;
+    double top = pos.dy - 12;
+
+    return Positioned(
+      left: left,
+      top: top,
+      child: IgnorePointer(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              final box = context.findRenderObject() as RenderBox?;
+              if (box == null) return;
+
+              final w = box.size.width;
+              final h = box.size.height;
+
+              double newLeft = left;
+              double newTop = top;
+
+              if (newLeft + w > size.width - margin) {
+                newLeft = size.width - margin - w;
+              }
+              if (newLeft < margin) newLeft = margin;
+
+              if (newTop < margin) {
+                newTop = pos.dy + 12; // flip below
+              }
+              if (newTop + h > size.height - margin) {
+                newTop = size.height - margin - h;
+              }
+
+              if (newLeft != left || newTop != top) {
+                // trigger reposition
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  // force rebuild with updated position
+                  setState(() {});
+                });
+              }
+            });
+
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2C3A46),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: DefaultTextStyle(
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 12,
+                  height: 1.25,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(lines[0]),
+                    Text(lines[1]),
+                    Text(lines[2]),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_pts.isEmpty) {
@@ -306,30 +513,45 @@ class _Plot3DViewState extends State<Plot3DView> {
       },
 
       child: RepaintBoundary(
-        child: SizedBox.expand(
-          child: CustomPaint(
-            painter: _Scatter3DPainter(
-              points: _pts,
-              selectedIndex: _selectedPointIndex,
-              yaw: _yaw,
-              pitch: _pitch,
-              zoom: _zoom,
-              axisLen: _axisLen,
-              xLabel: widget.spec.xAxis.label,
-              yLabel: widget.spec.yAxis.label,
-              zLabel: widget.spec.zAxis!.label,
-              labelStyle: textStyle,
-              xMin: _xMin,
-              xMax: _xMax,
-              yMin: _yMin,
-              yMax: _yMax,
-              zMin: _zMin,
-              zMax: _zMax,
-              xDateLabels: _xDateLabels,
-              yDateLabels: _yDateLabels,
-              zDateLabels: _zDateLabels,
-            ),
-          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final size = Size(constraints.maxWidth, constraints.maxHeight);
+
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: _Scatter3DPainter(
+                      points: _pts,
+                      yaw: _yaw,
+                      pitch: _pitch,
+                      zoom: _zoom,
+                      axisLen: _axisLen,
+                      selectedIndex: _selectedPointIndex, // keep existing
+                      xLabel: widget.spec.xAxis.label,
+                      yLabel: widget.spec.yAxis.label,
+                      zLabel: widget.spec.zAxis!.label,
+                      labelStyle: textStyle,
+                      xMin: _xMin,
+                      xMax: _xMax,
+                      yMin: _yMin,
+                      yMax: _yMax,
+                      zMin: _zMin,
+                      zMax: _zMax,
+                      xDateLabels: _xDateLabels,
+                      yDateLabels: _yDateLabels,
+                      zDateLabels: _zDateLabels,
+                    ),
+                  ),
+                ),
+
+                // Tooltip overlay
+                if (_selectedPointIndex != null)
+                  _buildTooltipOverlay(size),
+              ],
+            );
+          },
         ),
       ),
     );
