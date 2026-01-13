@@ -101,7 +101,7 @@ class _Plot3DViewState extends State<Plot3DView> {
     if (_yMin == _yMax) { _yMin -= 1; _yMax += 1; }
     if (_zMin == _zMax) { _zMin -= 1; _zMax += 1; }
 
-    // ---- NEW: Expand axis bounds to the "outermost nice tick" ----
+    // ---- Expand axis bounds to the "outermost nice tick" ----
     final xTicks = buildTicks(_xMin, _xMax, targetTicks: 4);
     if (xTicks.isNotEmpty) {
       _xMin = xTicks.first;
@@ -226,8 +226,6 @@ class _Scatter3DPainter extends CustomPainter {
   }) {
     if (!axisIsDate) return formatTick(tickValue);
 
-    // tickValue is in DATA space for the axis. For date axes, your data space
-    // is "index". Convert it to the nearest index and look up formatted label.
     final idx = tickValue.round();
     return dateLabels[idx] ?? formatTick(tickValue);
     
@@ -336,7 +334,7 @@ class _Scatter3DPainter extends CustomPainter {
     line3(o, _Vec3(0, axisLen, 0), axisPaint); // Y
     line3(o, _Vec3(0, 0, axisLen), axisPaint); // Z
 
-    // ---- NEW: inner face outlines (the 3 far faces of the cube) ----
+    // ---- Inner face outlines (the 3 far faces of the cube) ----
     final facePaint = Paint()
       ..color = AppColors.textSecondary.withOpacity(0.45)
       ..strokeWidth = 1.0
@@ -446,7 +444,7 @@ class _Scatter3DPainter extends CustomPainter {
       return axisLen * t;
     }
 
-    // ---- NEW: grid lines on inner faces (aligned to ticks) ----
+    // ---- Grid lines on inner faces (aligned to ticks) ----
     final gridPaint = Paint()
       ..color = AppColors.textSecondary.withOpacity(0.18)
       ..strokeWidth = 1.0
@@ -671,8 +669,6 @@ class _Proj2 {
 Map<int, String> _buildDateIndexLabels(PlotAxis axis, List<double> rawValues) {
   if (axis != PlotAxis.date) return const {};
 
-  // rawValues are your original date values (same ones you map to indices).
-  // In your pipeline they behave like epoch-ms doubles.
   final unique = rawValues.toSet().toList()..sort();
 
   final map = <int, String>{};
