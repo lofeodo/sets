@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../providers/exercise_logs_provider.dart';
 import '../providers/local_db_provider.dart';
 import '../providers/plot_sessions_provider.dart';
@@ -438,6 +441,11 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
             },
           ),
           actions: [
+            if (kDebugMode)
+              TextButton(
+                onPressed: () => _seedExampleBenchPress(workout.name, workout.exercises),
+                child: const Text('Seed'),
+              ),
             TextButton(
               onPressed: () => _saveAll(workout.name),
               child: const Text('Save'),
@@ -662,6 +670,126 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
     }
 
     if (mounted) setState(() {});
+  }
+
+  Future<void> _seedExampleBenchPress(String workoutName, List<String> exercises) async {
+    const exerciseName = 'Example bench press';
+
+    // 1) Ensure the exercise exists in this workout (so it shows in your pager UI)
+    final hasExercise = exercises.any((e) => e.trim().toLowerCase() == exerciseName.toLowerCase());
+    if (!hasExercise) {
+      final updatedExercises = [...exercises, exerciseName];
+
+      final err = await ref.read(workoutsProvider.notifier).updateWorkout(
+        originalName: workoutName,
+        rawName: workoutName,
+        rawExercises: updatedExercises,
+      );
+
+      if (err != null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Seed failed (workout update): $err')),
+        );
+        return;
+      }
+    }
+
+    final db = ref.read(localDbProvider);
+
+    // 2) Seed ~6 months history ending today
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    const weeks = 26;
+    const totalSessions = weeks * 2; // ~2x/week
+
+    // Deterministic-ish schedule: every 3 days
+    final dates = <DateTime>[];
+    for (int i = 0; i < totalSessions; i++) {
+      final daysBack = (totalSessions - 1 - i) * 3;
+      dates.add(today.subtract(Duration(days: daysBack)));
+    }
+
+    double r25(double x) => (x / 2.5).round() * 2.5;
+
+    for (int i = 0; i < dates.length; i++) {
+      final d = dates[i];
+      final dateIso = _dateIso(d);
+
+      final t = i / (dates.length - 1); // 0..1 progression
+
+      // Weight progression: ~140 -> ~205, with occasional lighter day
+      final baseTop = r25(140 + 65 * t);
+      final lightDay = (i % 7 == 0) ? -7.5 : 0.0;
+      final top = r25(baseTop + lightDay);
+
+      // Reps: ~9 -> ~5 over time, small oscillation
+      final repsBase = (9 - (4 * t)).round().clamp(5, 9);
+      final reps = (repsBase + ((i % 5 == 0) ? 1 : 0)).clamp(5, 10);
+
+      // Sets: more volume early, slightly less later
+      final setCount = (t < 0.35)
+          ? ((i % 4 == 0) ? 5 : 4)
+          : ((i % 6 == 0) ? 3 : 4);
+
+      final backoff = r25(top - ((t < 0.5) ? 5.0 : 2.5));
+
+      final sets = <SetLog>[];
+
+      // 1 top set
+      sets.add(SetLog(
+        isBodyweight: false,
+        weight: top,
+        fullReps: reps,
+        partialReps: 0,
+      ));
+
+      // backoff sets (slightly higher reps)
+      for (int s = 1; s < setCount; s++) {
+        final backoffReps = (reps + 1).clamp(5, 12);
+        sets.add(SetLog(
+          isBodyweight: false,
+          weight: backoff,
+          fullReps: backoffReps,
+          partialReps: 0,
+        ));
+      }
+
+      final log = ExerciseDayLog(
+        exerciseKey: db.exerciseKey(exerciseName),
+        exerciseName: exerciseName,
+        dateIso: dateIso,
+        workoutKey: db.workoutKey(workoutName),
+        workoutName: workoutName,
+        sets: sets,
+      );
+
+      await db.upsertExerciseLog(log);
+
+      // Update default weight logic you already use (max weight from this log)
+      await db.setDefaultWeightForExercise(exerciseName, top);
+      _defaults[exerciseName] = top;
+    }
+
+    // 3) Refresh providers used by UI + plots
+    ref.invalidate(exerciseLogsProvider);
+    ref.invalidate(plotSessionsProvider);
+    ref.invalidate(workoutsProvider);
+
+    // 4) Reload current date so UI reflects changes immediately
+    if (mounted) {
+      final workouts = ref.read(workoutsProvider).value ?? const [];
+      final idx = workouts.indexWhere((w) => w.name == workoutName);
+      if (idx != -1) {
+        await _loadForDate(workoutName, workouts[idx].exercises);
+      }
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Seeded: Example bench press (6 months).')),
+    );
   }
 
   Future<void> _saveAll(String workoutName) async {
