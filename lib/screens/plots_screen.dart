@@ -68,6 +68,14 @@ class _PlotsScreenState extends ConsumerState<PlotsScreen> {
 
   bool _loadedPrefs = false;
 
+  bool _scrollEnabled = true;
+  int _plotPointerCount = 0;
+
+  void _setScrollEnabled(bool enabled) {
+    if (_scrollEnabled == enabled) return;
+    setState(() => _scrollEnabled = enabled);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -195,6 +203,9 @@ class _PlotsScreenState extends ConsumerState<PlotsScreen> {
           final portraitWidth = MediaQuery.of(context).size.width;
 
           return SingleChildScrollView(
+            physics: _scrollEnabled
+              ? const BouncingScrollPhysics()
+              : const NeverScrollableScrollPhysics(),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -270,12 +281,6 @@ class _PlotsScreenState extends ConsumerState<PlotsScreen> {
                       height: portraitWidth,
                       child: Container(
                         alignment: Alignment.center,
-                        // decoration: BoxDecoration(
-                        //   border: Border.all(
-                        //     color: Theme.of(context).dividerColor,
-                        //   ),
-                        //   borderRadius: BorderRadius.circular(12),
-                        // ),
                         padding: const EdgeInsets.all(16),
                         child: (!is2DReady)
                             ? const Text(
@@ -298,7 +303,22 @@ class _PlotsScreenState extends ConsumerState<PlotsScreen> {
                                     sessions: sessions,
                                   );
 
-                                  return PlotView(spec: spec, data: data);
+                                  return Listener(
+                                    behavior: HitTestBehavior.opaque,
+                                    onPointerDown: (_) {
+                                      _plotPointerCount++;
+                                      if (_plotPointerCount == 1) _setScrollEnabled(false);
+                                    },
+                                    onPointerUp: (_) {
+                                      _plotPointerCount = (_plotPointerCount - 1).clamp(0, 9999);
+                                      if (_plotPointerCount == 0) _setScrollEnabled(true);
+                                    },
+                                    onPointerCancel: (_) {
+                                      _plotPointerCount = 0;
+                                      _setScrollEnabled(true);
+                                    },
+                                    child: PlotView(spec: spec, data: data),
+                                  );
                                 },
                               ),
 
