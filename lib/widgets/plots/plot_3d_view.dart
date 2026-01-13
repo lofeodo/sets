@@ -38,6 +38,7 @@ class _Plot3DViewState extends State<Plot3DView> {
 
   // Cached points in plot-space [0, axisLen]
   List<_Vec3> _pts = const [];
+  int? _selectedPointIndex;
 
   double _xMin = 0, _xMax = 1;
   double _yMin = 0, _yMax = 1;
@@ -135,6 +136,108 @@ class _Plot3DViewState extends State<Plot3DView> {
     );
   }
 
+  int? _pickNearestPoint({
+    required Offset localPos,
+    required Size size,
+    required double maxDistPx,
+  }) {
+    if (_pts.isEmpty) return null;
+
+    // Must match painter constants/logic
+    const pad = 6.0;
+    const camDist = 3.2;
+
+    final cx = size.width * 0.5;
+    final cy = size.height * 0.5;
+
+    final cyaw = math.cos(_yaw);
+    final syaw = math.sin(_yaw);
+    final cp = math.cos(_pitch);
+    final sp = math.sin(_pitch);
+
+    final half = _axisLen * 0.5;
+    _Vec3 centerShift(_Vec3 v) => _Vec3(v.x - half, v.y - half, v.z - half);
+
+    _Vec3 rot(_Vec3 v) {
+      // yaw around Y
+      final x1 = v.x * cyaw + v.z * syaw;
+      final y1 = v.y;
+      final z1 = -v.x * syaw + v.z * cyaw;
+
+      // pitch around X
+      final x2 = x1;
+      final y2 = y1 * cp - z1 * sp;
+      final z2 = y1 * sp + z1 * cp;
+
+      return _Vec3(x2, y2, z2);
+    }
+
+    _Proj2 projRaw(_Vec3 v) {
+      final denom = camDist - (v.z / _axisLen);
+      final p = 1.0 / denom;
+      return _Proj2(v.x * p, v.y * p, v.z);
+    }
+
+    // Compute bounds of the rotated cube for fit-to-frame scaling (same as painter)
+    final cubeCorners = <_Vec3>[
+      _Vec3(0, 0, 0),
+      _Vec3(_axisLen, 0, 0),
+      _Vec3(_axisLen, _axisLen, 0),
+      _Vec3(0, _axisLen, 0),
+      _Vec3(0, 0, _axisLen),
+      _Vec3(_axisLen, 0, _axisLen),
+      _Vec3(_axisLen, _axisLen, _axisLen),
+      _Vec3(0, _axisLen, _axisLen),
+    ].map((v) => rot(centerShift(v))).toList(growable: false);
+
+    double minX = double.infinity, maxX = -double.infinity;
+    double minY = double.infinity, maxY = -double.infinity;
+
+    for (final c in cubeCorners) {
+      final pr = projRaw(c);
+      if (pr.x < minX) minX = pr.x;
+      if (pr.x > maxX) maxX = pr.x;
+      if (pr.y < minY) minY = pr.y;
+      if (pr.y > maxY) maxY = pr.y;
+    }
+
+    final spanX = (maxX - minX).clamp(1e-6, 1e9);
+    final spanY = (maxY - minY).clamp(1e-6, 1e9);
+
+    final fitScale = math.min(
+      (size.width - 2 * pad) / spanX,
+      (size.height - 2 * pad) / spanY,
+    );
+
+    // IMPORTANT: must match painter (painter uses fitScale * zoom)
+    final scale = fitScale * _zoom;
+
+    final midX = (minX + maxX) * 0.5;
+    final midY = (minY + maxY) * 0.5;
+
+    Offset toScreen(_Vec3 v) {
+      final pr = projRaw(v);
+      final sx = cx + (pr.x - midX) * scale;
+      final sy = cy - (pr.y - midY) * scale;
+      return Offset(sx, sy);
+    }
+
+    int? bestIdx;
+    double bestD2 = maxDistPx * maxDistPx;
+
+    for (int i = 0; i < _pts.length; i++) {
+      final rp = rot(centerShift(_pts[i]));
+      final s = toScreen(rp);
+      final d2 = (s - localPos).distanceSquared;
+      if (d2 < bestD2) {
+        bestD2 = d2;
+        bestIdx = i;
+      }
+    }
+
+    return bestIdx;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_pts.isEmpty) {
@@ -171,11 +274,43 @@ class _Plot3DViewState extends State<Plot3DView> {
         });
       },
 
+      onLongPressStart: (d) {
+        // Size of the plot widget
+        final box = context.findRenderObject() as RenderBox;
+        final size = box.size;
+
+        final idx = _pickNearestPoint(
+          localPos: d.localPosition,
+          size: size,
+          maxDistPx: 90, // pick radius in pixels
+        );
+
+        setState(() => _selectedPointIndex = idx);
+      },
+
+      onLongPressMoveUpdate: (d) {
+        final box = context.findRenderObject() as RenderBox;
+        final size = box.size;
+
+        final idx = _pickNearestPoint(
+          localPos: d.localPosition,
+          size: size,
+          maxDistPx: 90,
+        );
+
+        setState(() => _selectedPointIndex = idx);
+      },
+
+      onLongPressEnd: (_) {
+        setState(() => _selectedPointIndex = null);
+      },
+
       child: RepaintBoundary(
         child: SizedBox.expand(
           child: CustomPaint(
             painter: _Scatter3DPainter(
               points: _pts,
+              selectedIndex: _selectedPointIndex,
               yaw: _yaw,
               pitch: _pitch,
               zoom: _zoom,
@@ -203,6 +338,7 @@ class _Plot3DViewState extends State<Plot3DView> {
 
 class _Scatter3DPainter extends CustomPainter {
   final List<_Vec3> points;
+  final int? selectedIndex;
   final double yaw;
   final double pitch;
   final double zoom;
@@ -219,9 +355,9 @@ class _Scatter3DPainter extends CustomPainter {
   final Map<int, String> yDateLabels;
   final Map<int, String> zDateLabels;
 
-
   const _Scatter3DPainter({
     required this.points,
+    required this.selectedIndex,
     required this.yaw,
     required this.pitch,
     required this.zoom,
@@ -596,6 +732,8 @@ class _Scatter3DPainter extends CustomPainter {
       ..sort((a, b) => rotatedPoints[a].z.compareTo(rotatedPoints[b].z));
 
     for (final i in indices) {
+      if (selectedIndex != null && i == selectedIndex) continue;
+
       final v = rotatedPoints[i];
 
       // Depth cue: subtle fade + size change
@@ -612,6 +750,54 @@ class _Scatter3DPainter extends CustomPainter {
       canvas.drawCircle(toScreen(v), radius, paint);
     }
 
+        // ---- Selected point: oversized + orthogonal guide lines to axes ----
+    if (selectedIndex != null &&
+        selectedIndex! >= 0 &&
+        selectedIndex! < points.length) {
+      final p = points[selectedIndex!];
+
+      final guidePaint = Paint()
+        ..color = AppColors.accent.withOpacity(0.95)
+        ..strokeWidth = 4.0
+        ..isAntiAlias = true;
+
+      // We draw guides to the ORIGIN-side faces you currently use (x=0, y=0, z=0),
+      // then along that face to the corresponding axis.
+
+      // X axis: drop to z=0 face (XY), then to x-axis line (y=0,z=0)
+      final xFace = _Vec3(p.x, p.y, 0);
+      final xAxis = _Vec3(p.x, 0, 0);
+
+      // Y axis: drop to x=0 face (YZ), then to y-axis line (x=0,z=0)
+      final yFace = _Vec3(0, p.y, p.z);
+      final yAxis = _Vec3(0, p.y, 0);
+
+      // Z axis: drop to y=0 face (XZ), then to z-axis line (x=0,y=0)
+      final zFace = _Vec3(p.x, 0, p.z);
+      final zAxis = _Vec3(0, 0, p.z);
+
+      // Segment 1: point -> face
+      line3(p, xFace, guidePaint);
+      line3(p, yFace, guidePaint);
+      line3(p, zFace, guidePaint);
+
+      // Segment 2: face -> axis
+      line3(xFace, xAxis, guidePaint);
+      line3(yFace, yAxis, guidePaint);
+      line3(zFace, zAxis, guidePaint);
+
+      // Draw the selected point last (slightly larger)
+      final rp = rot(centerShift(p));
+      final sp = toScreen(rp);
+      canvas.drawCircle(
+        sp,
+        7.0,
+        Paint()
+          ..color = AppColors.accent
+          ..isAntiAlias = true,
+      );
+    }
+
     canvas.restore();
   }
 
@@ -619,6 +805,7 @@ class _Scatter3DPainter extends CustomPainter {
   bool shouldRepaint(covariant _Scatter3DPainter oldDelegate) {
     return oldDelegate.yaw != yaw ||
         oldDelegate.pitch != pitch ||
+        oldDelegate.selectedIndex != selectedIndex ||
         oldDelegate.zoom != zoom ||
         oldDelegate.axisLen != axisLen ||
         oldDelegate.points != points ||
