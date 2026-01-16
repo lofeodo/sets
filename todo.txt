@@ -15,6 +15,13 @@ Features:
 - change plots tab into data tab with ability for plots or data manipulation (i.e. clearing exercise data/deleting exercises)
 - plots:
 	- date selection (3 months, 6 months, max, custom, etc.)
+	- integer ticks
+	- color match selectors to axis color (?)
+- date selector bit larger than exercise namespace
+- integer values in record workout screen
+- Check previous/next workout only within 3 years of active date
+- * target rep range info inside of workout description
+- try reducing font sizes all around.
 
 - potentially add a notes section
 - slide between exercise and plots screens with swiping
@@ -23,6 +30,8 @@ Features:
 Bugs:
 - delete sheets on landscape mode lose their bottom padding
 - add sheet on landscape cant see what you're typing
+- points axes are hard to see
+- default weight bodyweight not toggled
 
 ==============================
    
