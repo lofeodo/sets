@@ -148,7 +148,11 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
 
   // find nearest previous date with a workout (cached OR saved)
   Future<DateTime?> _findPrevWorkoutDate(String workoutName, List<String> exercises) async {
-    final firstDate = DateTime(2000, 1, 1);
+    final firstDate = DateTime(
+      _activeDate.year - 1,
+      _activeDate.month,
+      _activeDate.day,
+    );
 
     // Make sure current date is cached before searching
     _stashActiveDrafts();
@@ -198,7 +202,7 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
     if (target == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No previous recorded workout found.')),
+        const SnackBar(content: Text('No workout found in the previous year.')),
       );
       return;
     }
