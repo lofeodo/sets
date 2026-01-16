@@ -17,9 +17,7 @@ Features:
 	- date selection (3 months, 6 months, max, custom, etc.)
 	- integer ticks
 	- color match selectors to axis color (?)
-- date selector bit larger than exercise namespace
 - integer values in record workout screen
-- Check previous/next workout only within 3 years of active date
 - * target rep range info inside of workout description
 - try reducing font sizes all around.
 
@@ -61,3 +59,5 @@ x - warning overlapping
 x - pixel overflow in axis selectors
 x - pick date screen text
 x - use same day's previous set's weight as default instead if it exists
+x - Check previous/next workout only within 3 years of active date
+x - date selector bit larger than exercise namespace

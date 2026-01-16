@@ -381,6 +381,229 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
     _exerciseIndexByDate.clear();
   }
 
+  Widget _buildSetCard(
+    BuildContext context, {
+    required int setIndex,
+    required SetDraft set,
+    required VoidCallback onRemove,
+    required ValueChanged<String> onWeightChanged,
+    required ValueChanged<String> onFullRepsChanged,
+    required ValueChanged<String> onPartialRepsChanged,
+    required String currentExercise,
+  }) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Bodyweight'),
+                    value: set.isBodyweight,
+                    onChanged: (v) {
+                      setState(() {
+                        set.isBodyweight = v;
+                        if (v) {
+                          set.weightController.text = '';
+                        } else if (set.weightController.text.trim().isEmpty) {
+                          final d = _defaultWeightForNewSet(currentExercise);
+                          if (d != null) set.weightController.text = d.toString();
+                        }
+                      });
+                    },
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Remove set',
+                  onPressed: onRemove,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: set.weightController,
+              onChanged: onWeightChanged,
+              enabled: !set.isBodyweight,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Weight'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: set.fullRepsController,
+              onChanged: onFullRepsChanged,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(labelText: 'Full reps', hintText: '0'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: set.partialRepsController,
+              onChanged: onPartialRepsChanged,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(labelText: 'Partial reps', hintText: '0'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSetsList(
+    BuildContext context, {
+    required String currentExercise,
+    required List<SetDraft> currentSets,
+  }) {
+    if (currentSets.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16),
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: Text('No sets yet. Tap + to add one.'),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      itemCount: currentSets.length,
+      itemBuilder: (context, setIndex) {
+        final set = currentSets[setIndex];
+
+        final dateIso = _dateIso(_activeDate);
+        final keyW  = _k(dateIso, currentExercise, setIndex, 'w');
+        final keyFR = _k(dateIso, currentExercise, setIndex, 'fr');
+        final keyPR = _k(dateIso, currentExercise, setIndex, 'pr');
+
+        return _buildSetCard(
+          context,
+          setIndex: setIndex,
+          set: set,
+          onRemove: () => setState(() => currentSets.removeAt(setIndex)),
+          onWeightChanged: (v) => setState(() => _updateDirty(keyW, v.trim())),
+          onFullRepsChanged: (v) => setState(() => _updateDirty(keyFR, v.trim())),
+          onPartialRepsChanged: (v) => setState(() => _updateDirty(keyPR, v.trim())),
+          currentExercise: currentExercise,
+        );
+      },
+    );
+  }
+
+  Widget _buildSetsHeaderRow(
+    BuildContext context,
+    String currentExercise,
+    List<SetDraft> currentSets,
+  ) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Sets',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.add),
+          tooltip: 'Add set',
+          onPressed: () {
+            setState(() {
+              final w = _defaultWeightForNewSet(currentExercise);
+              currentSets.add(SetDraft.withDefaultWeight(w));
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildExercisePager(BuildContext context, List<String> exercises) {
+    final currentExercise = exercises[_exerciseIndex];
+
+    return Row(
+      children: [
+        IconButton(
+          icon: const Icon(Icons.chevron_left),
+          onPressed: _exerciseIndex > 0 ? () => setState(() => _exerciseIndex--) : null,
+        ),
+        Expanded(
+          child: Column(
+            children: [
+              Text(
+                currentExercise,
+                style: Theme.of(context).textTheme.titleSmall,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${_exerciseIndex + 1} / ${exercises.length}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.chevron_right),
+          onPressed: _exerciseIndex < exercises.length - 1
+              ? () => setState(() => _exerciseIndex++)
+              : null,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDateNavRow(
+    BuildContext context,
+    String workoutName,
+    List<String> exercises,
+  ) {
+    return Row(
+      children: [
+        IconButton(
+          icon: const Icon(Icons.keyboard_double_arrow_left),
+          tooltip: 'Previous workout',
+          onPressed: () => _goPrevWorkout(workoutName, exercises),
+        ),
+        IconButton(
+          icon: const Icon(Icons.chevron_left),
+          tooltip: 'Previous day',
+          onPressed: () => _goPrev(workoutName, exercises),
+        ),
+        Expanded(
+          child: Center(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => _pickDate(workoutName, exercises),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Text(
+                  _dateIso(_activeDate),
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+            ),
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.chevron_right),
+          tooltip: 'Next day',
+          onPressed: _canGoNext ? () => _goNext(workoutName, exercises) : null,
+        ),
+        IconButton(
+          icon: const Icon(Icons.keyboard_double_arrow_right),
+          tooltip: 'Next workout',
+          onPressed: _canGoNext ? () => _goNextWorkout(workoutName, exercises) : null,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) 
   {
@@ -462,196 +685,31 @@ class _RecordWorkoutScreenState extends ConsumerState<RecordWorkoutScreen> {
             ),
           ],
         ),
-        body: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.keyboard_double_arrow_left),
-                  tooltip: 'Previous workout',
-                  onPressed: () => _goPrevWorkout(workout.name, exercises),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Column(
+                  children: [
+                    _buildDateNavRow(context, workout.name, exercises),
+                    const SizedBox(height: 12),
+                    _buildExercisePager(context, exercises),
+                    const SizedBox(height: 12),
+                    _buildSetsHeaderRow(context, currentExercise, currentSets),
+                  ],
                 ),
+              ),
 
-                IconButton(
-                  icon: const Icon(Icons.chevron_left),
-                  onPressed: () => _goPrev(workout.name, exercises),
-                  tooltip: 'Previous day',
+              Expanded(
+                child: _buildSetsList(
+                  context,
+                  currentExercise: currentExercise,
+                  currentSets: currentSets,
                 ),
-
-                Expanded(
-                  child: Center(
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(8),
-                      onTap: () => _pickDate(workout.name, exercises),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                        child: Text(
-                          _dateIso(_activeDate),
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                IconButton(
-                  icon: const Icon(Icons.chevron_right),
-                  onPressed: _canGoNext ? () => _goNext(workout.name, exercises) : null,
-                  tooltip: 'Next day',
-                ),
-
-                IconButton(
-                  icon: const Icon(Icons.keyboard_double_arrow_right),
-                  tooltip: 'Next workout',
-                  onPressed: _canGoNext
-                      ? () => _goNextWorkout(workout.name, exercises)
-                      : null,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            // Exercise pager header
-            Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_left),
-                  onPressed: _exerciseIndex > 0
-                      ? () => setState(() => _exerciseIndex--)
-                      : null,
-                ),
-                Expanded(
-                  child: Column(
-                    children: [
-                      Text(
-                        currentExercise,
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${_exerciseIndex + 1} / ${exercises.length}',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.chevron_right),
-                  onPressed: _exerciseIndex < exercises.length - 1
-                      ? () => setState(() => _exerciseIndex++)
-                      : null,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Add set row
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'Sets',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.add),
-                  tooltip: 'Add set',
-                  onPressed: () {
-                    setState(() {
-                      final w = _defaultWeightForNewSet(currentExercise);
-                      currentSets.add(SetDraft.withDefaultWeight(w));
-                    });
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-
-            if (currentSets.isEmpty)
-              const Text('No sets yet. Tap + to add one.')
-            else
-              ...currentSets.asMap().entries.map((entry) {
-                final setIndex = entry.key;
-                final set = entry.value;
-
-                final dateIso = _dateIso(_activeDate);
-                final keyW  = _k(dateIso, currentExercise, setIndex, 'w');
-                final keyFR = _k(dateIso, currentExercise, setIndex, 'fr');
-                final keyPR = _k(dateIso, currentExercise, setIndex, 'pr');
-
-                return Card(
-                  margin: const EdgeInsets.symmetric(vertical: 6),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: SwitchListTile(
-                                contentPadding: EdgeInsets.zero,
-                                title: const Text('Bodyweight'),
-                                value: set.isBodyweight,
-                                onChanged: (v) {
-                                  setState(() {
-                                    set.isBodyweight = v;
-                                    if (v) {
-                                      set.weightController.text = '';
-                                    } else {
-                                      // Restore default if empty
-                                      if (set.weightController.text.trim().isEmpty) {
-                                        final d = _defaultWeightForNewSet(currentExercise);
-                                        if (d != null) {
-                                          set.weightController.text = d.toString();
-                                        }
-                                      }
-                                    }
-                                  });
-                                },
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.close),
-                              tooltip: 'Remove set',
-                              onPressed: () {
-                                setState(() => currentSets.removeAt(setIndex));
-                              },
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: set.weightController,
-                          onChanged: (v) => setState(() => _updateDirty(keyW, v.trim())),
-                          enabled: !set.isBodyweight,
-                          keyboardType:
-                              const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(labelText: 'Weight'),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: set.fullRepsController,
-                          onChanged: (v) => setState(() => _updateDirty(keyFR, v.trim())),
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                          decoration: const InputDecoration(labelText: 'Full reps', hintText: '0'),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: set.partialRepsController,
-                          onChanged: (v) => setState(() => _updateDirty(keyPR, v.trim())),
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                          decoration: const InputDecoration(labelText: 'Partial reps', hintText: '0'),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-          ],
+              ),
+            ],
+          ),
         ),
       )
     );
